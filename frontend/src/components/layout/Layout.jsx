@@ -3,6 +3,7 @@ import {
   BarChart3,
   Building2,
   ChevronRight,
+  ClipboardList,
   Database,
   Gauge,
   PanelLeft,
@@ -12,48 +13,56 @@ import {
   Tv
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-
-const navSections = [
-  {
-    title: "Executive",
-    items: [
-      { to: "/dashboard", label: "Dashboard", icon: Gauge },
-      { to: "/strategic-performance", label: "Strategic Performance", icon: Sparkles }
-    ]
-  },
-  {
-    title: "Institutional Assets",
-    items: [
-      { to: "/assets/virtual-university", label: "Virtual University", icon: Building2 },
-      { to: "/assets/hangout", label: "Hangout", icon: BarChart3 },
-      { to: "/assets/springboard-tv", label: "Springboard TV", icon: Tv }
-    ]
-  },
-  {
-    title: "MEL Operations",
-    items: [
-      { to: "/data-collection", label: "Data Collection", icon: Database },
-      { to: "/indicators", label: "Indicators", icon: PanelLeft },
-      { to: "/data-quality", label: "Data Quality", icon: ShieldCheck }
-    ]
-  },
-  {
-    title: "Settings",
-    items: [
-      { to: "/settings", label: "Settings", icon: Settings }
-    ]
-  }
-];
+import useMELData from "../../hooks/useMELData";
 
 export default function Layout({ children }) {
   const { profile, signOut } = useAuth();
+  const { assets } = useMELData();
   const location = useLocation();
+
   const initials = (profile?.full_name || "User")
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  // Build dynamic asset nav items
+  const assetItems = (assets || []).map((asset) => ({
+    to: `/assets/${asset.slug}`,
+    label: asset.name,
+    icon: asset.slug === "springboard-tv" ? Tv : asset.slug === "hangout" ? BarChart3 : Building2
+  }));
+
+  const navSections = [
+    {
+      title: "Executive",
+      items: [
+        { to: "/dashboard", label: "Dashboard", icon: Gauge },
+        { to: "/strategic-performance", label: "Strategic Performance", icon: Sparkles }
+      ]
+    },
+    {
+      title: "Institutional Assets",
+      items: assetItems,
+      emptyText: "Assets will appear after you add them."
+    },
+    {
+      title: "MEL Operations",
+      items: [
+        { to: "/data-collection", label: "Data Collection", icon: Database },
+        { to: "/indicators", label: "Indicators", icon: PanelLeft },
+        { to: "/surveys", label: "Surveys", icon: ClipboardList },
+        { to: "/data-quality", label: "Data Quality", icon: ShieldCheck }
+      ]
+    },
+    {
+      title: "Settings",
+      items: [
+        { to: "/settings", label: "Settings", icon: Settings }
+      ]
+    }
+  ];
 
   return (
     <div className="app-layout">
@@ -64,7 +73,7 @@ export default function Layout({ children }) {
           </div>
           <div>
             <div className="sidebar-brand-title">Springboard MIS</div>
-            <div className="sidebar-brand-text">SRF decision support system</div>
+            <div className="sidebar-brand-text">MEL decision support</div>
           </div>
         </div>
 
@@ -73,19 +82,23 @@ export default function Layout({ children }) {
             <div key={section.title} className="sidebar-section">
               <div className="nav-group-label">{section.title}</div>
               <div className="sidebar-section-list">
-                {section.items.map((item) => {
-                  const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
-                  const Icon = item.icon;
-                  return (
-                    <NavLink key={item.to} to={item.to} className={`nav-item ${isActive ? "active" : ""}`}>
-                      <span className="nav-item-main">
-                        <Icon className="nav-icon" size={18} />
-                        <span>{item.label}</span>
-                      </span>
-                      <ChevronRight size={14} className="nav-chevron" />
-                    </NavLink>
-                  );
-                })}
+                {section.items.length ? (
+                  section.items.map((item) => {
+                    const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                    const Icon = item.icon;
+                    return (
+                      <NavLink key={item.to} to={item.to} className={`nav-item ${isActive ? "active" : ""}`}>
+                        <span className="nav-item-main">
+                          <Icon className="nav-icon" size={18} />
+                          <span>{item.label}</span>
+                        </span>
+                        <ChevronRight size={14} className="nav-chevron" />
+                      </NavLink>
+                    );
+                  })
+                ) : (
+                  <div className="sidebar-empty">{section.emptyText || "Nothing here yet."}</div>
+                )}
               </div>
             </div>
           ))}

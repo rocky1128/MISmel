@@ -1,6 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { evidenceBucket, supabase } from "../lib/supabaseClient";
 import { derivePillar, getPerformanceScore, slugify } from "../lib/melAnalytics";
+import {
+  runIndicatorEngine,
+  computeAssetScores,
+  buildSignalBlocks,
+  buildDomainSummary
+} from "../lib/indicatorEngine";
 
 const MELDataContext = createContext(null);
 
@@ -19,6 +25,16 @@ export function MELDataProvider({ children }) {
   const [submissions, setSubmissions] = useState([]);
   const [activePeriodId, setActivePeriodId] = useState(null);
 
+  // NEW: Multi-source data
+  const [participants, setParticipants] = useState([]);
+  const [episodes, setEpisodes] = useState([]);
+  const [surveyResponses, setSurveyResponses] = useState([]);
+  const [followUpData, setFollowUpData] = useState([]);
+  const [governedIndicators, setGovernedIndicators] = useState([]);
+  const [indicatorResults, setIndicatorResults] = useState([]);
+  const [assetScoresData, setAssetScoresData] = useState([]);
+  const [indicatorApprovals, setIndicatorApprovals] = useState([]);
+
   const loadAll = useCallback(async () => {
     if (!supabase) {
       setLoading(false);
@@ -30,18 +46,11 @@ export function MELDataProvider({ children }) {
 
     try {
       const [
-        actRes,
-        objRes,
-        profRes,
-        deptRes,
-        indRes,
-        evRes,
-        checkinRes,
-        ivRes,
-        perRes,
-        assetRes,
-        metRes,
-        subRes
+        actRes, objRes, profRes, deptRes, indRes, evRes,
+        checkinRes, ivRes, perRes, assetRes, metRes, subRes,
+        // NEW data sources
+        partRes, epRes, surveyRes, followRes,
+        govIndRes, indResultsRes, assetScoresRes, approvalsRes
       ] = await Promise.all([
         supabase.from("activities").select("*"),
         supabase.from("objectives").select("id, code, title"),
@@ -54,21 +63,31 @@ export function MELDataProvider({ children }) {
         supabase.from("reporting_periods").select("*").order("start_date", { ascending: false }),
         supabase.from("assets").select("*"),
         supabase.from("metrics").select("*").order("date", { ascending: false }).limit(2000),
-        supabase.from("submissions_log").select("*").order("created_at", { ascending: false }).limit(200)
+        supabase.from("submissions_log").select("*").order("created_at", { ascending: false }).limit(200),
+        // NEW tables
+        supabase.from("participants").select("*").order("registration_date", { ascending: false }),
+        supabase.from("episodes").select("*").order("air_date", { ascending: false }),
+        supabase.from("survey_responses").select("*").order("survey_date", { ascending: false }),
+        supabase.from("follow_up_data").select("*").order("follow_up_date", { ascending: false }),
+        supabase.from("governed_indicators").select("*").order("created_at", { ascending: false }),
+        supabase.from("indicator_results").select("*").order("computed_at", { ascending: false }),
+        supabase.from("asset_scores").select("*").order("computed_at", { ascending: false }),
+        supabase.from("indicator_approvals").select("*").order("created_at", { ascending: false })
       ]);
 
-      const allResults = [actRes, objRes, profRes, deptRes, indRes, evRes, checkinRes, ivRes, perRes, assetRes, metRes, subRes];
-      const failed = allResults.find((result) => result.error);
+      // Check original tables for errors (new tables may not exist yet — handle gracefully)
+      const coreResults = [actRes, objRes, profRes, deptRes, indRes, evRes, checkinRes, ivRes, perRes, assetRes, metRes, subRes];
+      const failed = coreResults.find((result) => result.error);
       if (failed?.error) {
         setError(failed.error.message);
         setLoading(false);
         return;
       }
 
-      const objectivesMap = new Map((objRes.data ?? []).map((objective) => [objective.id, objective]));
-      const profilesMap = new Map((profRes.data ?? []).map((profile) => [profile.id, profile.full_name]));
-      const departmentsMap = new Map((deptRes.data ?? []).map((department) => [department.id, department.name]));
-      const assetsMap = new Map((assetRes.data ?? []).map((asset) => [asset.id, asset.name]));
+      const objectivesMap = new Map((objRes.data ?? []).map((o) => [o.id, o]));
+      const profilesMap = new Map((profRes.data ?? []).map((p) => [p.id, p.full_name]));
+      const departmentsMap = new Map((deptRes.data ?? []).map((d) => [d.id, d.name]));
+      const assetsMap = new Map((assetRes.data ?? []).map((a) => [a.id, a.name]));
 
       const latestCheckin = new Map();
       for (const checkin of checkinRes.data ?? []) {
@@ -90,18 +109,16 @@ export function MELDataProvider({ children }) {
         description: asset.description,
         slug: slugify(asset.name)
       }));
-
       setAssets(normalizedAssets);
 
-      const openPeriod = (perRes.data ?? []).find((period) => period.status === "open");
+      const openPeriod = (perRes.data ?? []).find((p) => p.status === "open");
       setActivePeriodId(openPeriod?.id ?? null);
 
-      const normalizedObjectives = (objRes.data ?? []).map((objective) => ({
-        id: objective.id,
-        code: objective.code,
-        title: objective.title ?? objective.code
-      }));
-      setObjectives(normalizedObjectives);
+      setObjectives((objRes.data ?? []).map((o) => ({
+        id: o.id,
+        code: o.code,
+        title: o.title ?? o.code
+      })));
 
       const normalizedActivities = (actRes.data ?? []).map((activity) => {
         const objective = objectivesMap.get(activity.objective_id);
@@ -122,7 +139,6 @@ export function MELDataProvider({ children }) {
           endMonth: activity.planned_end_month,
           year: activity.planned_year
         };
-
         return {
           ...normalized,
           pillar: derivePillar({
@@ -157,7 +173,6 @@ export function MELDataProvider({ children }) {
           indicatorStatus: indicator.indicator_status ?? "active",
           formula: indicator.formula
         };
-
         return {
           ...normalized,
           pillar: derivePillar({
@@ -173,55 +188,35 @@ export function MELDataProvider({ children }) {
       });
       setIndicators(normalizedIndicators);
 
-      setDepartments((deptRes.data ?? []).map((department) => ({
-        id: department.id,
-        name: department.name,
-        type: department.type
+      setDepartments((deptRes.data ?? []).map((d) => ({
+        id: d.id, name: d.name, type: d.type
       })));
 
-      setPeriods((perRes.data ?? []).map((period) => ({
-        id: period.id,
-        name: period.name,
-        startDate: period.start_date,
-        endDate: period.end_date,
-        status: period.status
+      setPeriods((perRes.data ?? []).map((p) => ({
+        id: p.id, name: p.name, startDate: p.start_date, endDate: p.end_date, status: p.status
       })));
 
-      setUsers((profRes.data ?? []).map((profile) => ({
-        id: profile.id,
-        fullName: profile.full_name,
-        email: profile.email,
-        role: profile.role,
-        department: departmentsMap.get(profile.department_id) ?? "Unassigned"
+      setUsers((profRes.data ?? []).map((p) => ({
+        id: p.id, fullName: p.full_name, email: p.email, role: p.role,
+        department: departmentsMap.get(p.department_id) ?? "Unassigned"
       })));
 
-      setMetrics((metRes.data ?? []).map((metric) => ({
-        id: metric.id,
-        name: metric.name,
-        source: metric.source,
-        assetId: metric.asset_id,
-        assetName: metric.asset_id ? assetsMap.get(metric.asset_id) : null,
-        date: metric.date,
-        value: Number(metric.value),
-        metadata: metric.metadata
+      setMetrics((metRes.data ?? []).map((m) => ({
+        id: m.id, name: m.name, source: m.source, assetId: m.asset_id,
+        assetName: m.asset_id ? assetsMap.get(m.asset_id) : null,
+        date: m.date, value: Number(m.value), metadata: m.metadata
       })));
 
-      setSubmissions((subRes.data ?? []).map((submission) => ({
-        id: submission.id,
-        userId: submission.user_id,
-        userName: profilesMap.get(submission.user_id) ?? "Unknown",
-        action: submission.action,
-        entityType: submission.entity_type,
-        entityId: submission.entity_id,
-        changes: submission.changes,
-        approvalStatus: submission.approval_status ?? "pending",
-        approvedBy: submission.approved_by ? profilesMap.get(submission.approved_by) : null,
-        notes: submission.notes,
-        createdAt: submission.created_at
+      setSubmissions((subRes.data ?? []).map((s) => ({
+        id: s.id, userId: s.user_id, userName: profilesMap.get(s.user_id) ?? "Unknown",
+        action: s.action, entityType: s.entity_type, entityId: s.entity_id,
+        changes: s.changes, approvalStatus: s.approval_status ?? "pending",
+        approvedBy: s.approved_by ? profilesMap.get(s.approved_by) : null,
+        notes: s.notes, createdAt: s.created_at
       })));
 
-      const activityTitles = new Map((actRes.data ?? []).map((activity) => [activity.id, activity.title]));
-      const indicatorNames = new Map((indRes.data ?? []).map((indicator) => [indicator.id, indicator.name]));
+      const activityTitles = new Map((actRes.data ?? []).map((a) => [a.id, a.title]));
+      const indicatorNames = new Map((indRes.data ?? []).map((i) => [i.id, i.name]));
 
       setEvidence((evRes.data ?? []).map((item) => ({
         id: item.id,
@@ -233,6 +228,22 @@ export function MELDataProvider({ children }) {
         submittedBy: profilesMap.get(item.submitted_by) ?? "Unknown",
         verificationStatus: item.verification_status === "verified" ? "Verified" : item.verification_status === "rejected" ? "Rejected" : "Pending"
       })));
+
+      // NEW: Set multi-source data (gracefully handle missing tables)
+      setParticipants(partRes.data ?? []);
+      setEpisodes(epRes.data ?? []);
+      setSurveyResponses(surveyRes.data ?? []);
+      setFollowUpData(followRes.data ?? []);
+      setGovernedIndicators((govIndRes.data ?? []).map((gi) => ({
+        ...gi,
+        asset_name: gi.asset_id ? assetsMap.get(gi.asset_id) : null,
+        created_by_name: gi.created_by ? profilesMap.get(gi.created_by) : null,
+        approved_by_name: gi.approved_by ? profilesMap.get(gi.approved_by) : null
+      })));
+      setIndicatorResults(indResultsRes.data ?? []);
+      setAssetScoresData(assetScoresRes.data ?? []);
+      setIndicatorApprovals(approvalsRes.data ?? []);
+
     } catch (caughtError) {
       setError(caughtError.message);
     }
@@ -244,9 +255,45 @@ export function MELDataProvider({ children }) {
     loadAll();
   }, [loadAll]);
 
+  // ===== DATA SOURCES BUNDLE (for indicator engine) =====
+  const dataSources = useMemo(() => ({
+    episodes,
+    participants,
+    survey_responses: surveyResponses,
+    follow_up_data: followUpData
+  }), [episodes, participants, surveyResponses, followUpData]);
+
+  // ===== COMPUTED: Run indicator engine on governed indicators =====
+  const computedResults = useMemo(() => {
+    const activeGov = governedIndicators.filter((i) => i.status === "active" || i.status === "approved");
+    if (!activeGov.length) return [];
+    const currentPeriodName = periods.find((p) => p.status === "open")?.name ?? "unconfigured period";
+    return runIndicatorEngine(activeGov, dataSources, currentPeriodName);
+  }, [governedIndicators, dataSources, periods]);
+
+  // ===== COMPUTED: Asset scores =====
+  const computedAssetScores = useMemo(
+    () => computeAssetScores(computedResults, assets),
+    [computedResults, assets]
+  );
+
+  // ===== COMPUTED: Signal blocks for executive dashboard =====
+  const signalBlocks = useMemo(
+    () => buildSignalBlocks(computedResults, dataSources),
+    [computedResults, dataSources]
+  );
+
+  // ===== COMPUTED: Domain summary =====
+  const domainSummary = useMemo(
+    () => buildDomainSummary(computedResults),
+    [computedResults]
+  );
+
+  // ===== MUTATIONS =====
+
   async function submitIndicatorValue(payload) {
     const periodId = payload.reporting_period_id ?? activePeriodId;
-    if (!periodId) return { success: false, error: { message: "No open reporting period." } };
+    if (!periodId) return { success: false, error: { message: "No active reporting period. Create one in Settings first." } };
     const { error: submitError } = await supabase
       .from("indicator_values")
       .upsert(
@@ -286,7 +333,7 @@ export function MELDataProvider({ children }) {
 
   async function addEvidence(payload) {
     const periodId = payload.reporting_period_id ?? activePeriodId;
-    if (!periodId) return { success: false, error: { message: "No open reporting period." } };
+    if (!periodId) return { success: false, error: { message: "No active reporting period. Create one in Settings first." } };
     const insert = { ...payload, reporting_period_id: periodId };
     if (payload.file) {
       const path = `${periodId}/${Date.now()}-${payload.file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
@@ -339,34 +386,192 @@ export function MELDataProvider({ children }) {
     return { success: true };
   }
 
+  // ===== NEW MUTATIONS =====
+
+  async function createGovernedIndicator(payload) {
+    const { data, error: insertError } = await supabase
+      .from("governed_indicators")
+      .insert({
+        ...payload,
+        status: "draft",
+        version: 1
+      })
+      .select("id")
+      .single();
+    if (insertError) return { success: false, error: insertError };
+    await addSubmissionLog({
+      action: "created_indicator",
+      entityType: "governed_indicator",
+      entityId: data.id,
+      changes: payload
+    });
+    await loadAll();
+    return { success: true, id: data.id };
+  }
+
+  async function submitIndicatorForApproval(indicatorId) {
+    const { error: updateError } = await supabase
+      .from("governed_indicators")
+      .update({ status: "submitted" })
+      .eq("id", indicatorId);
+    if (updateError) return { success: false, error: updateError };
+    await supabase.from("indicator_approvals").insert({
+      indicator_id: indicatorId,
+      action: "submitted",
+      from_status: "draft",
+      to_status: "submitted"
+    });
+    await loadAll();
+    return { success: true };
+  }
+
+  async function approveIndicator(indicatorId) {
+    const { error: updateError } = await supabase
+      .from("governed_indicators")
+      .update({ status: "active", approved_at: new Date().toISOString() })
+      .eq("id", indicatorId);
+    if (updateError) return { success: false, error: updateError };
+    await supabase.from("indicator_approvals").insert({
+      indicator_id: indicatorId,
+      action: "approved",
+      from_status: "submitted",
+      to_status: "active"
+    });
+    await loadAll();
+    return { success: true };
+  }
+
+  async function rejectIndicator(indicatorId, reason) {
+    const { error: updateError } = await supabase
+      .from("governed_indicators")
+      .update({ status: "draft", rejection_reason: reason })
+      .eq("id", indicatorId);
+    if (updateError) return { success: false, error: updateError };
+    await supabase.from("indicator_approvals").insert({
+      indicator_id: indicatorId,
+      action: "rejected",
+      from_status: "submitted",
+      to_status: "draft",
+      reason
+    });
+    await loadAll();
+    return { success: true };
+  }
+
+  async function deprecateIndicator(indicatorId) {
+    const { error: updateError } = await supabase
+      .from("governed_indicators")
+      .update({ status: "deprecated", deprecated_at: new Date().toISOString() })
+      .eq("id", indicatorId);
+    if (updateError) return { success: false, error: updateError };
+    await supabase.from("indicator_approvals").insert({
+      indicator_id: indicatorId,
+      action: "deprecated",
+      from_status: "active",
+      to_status: "deprecated"
+    });
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitSurveyResponse(payload) {
+    const { error: insertError } = await supabase.from("survey_responses").insert(payload);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitBulkSurveys(data) {
+    const { error: insertError } = await supabase.from("survey_responses").insert(data);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitFollowUp(payload) {
+    const { error: insertError } = await supabase.from("follow_up_data").insert(payload);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitParticipant(payload) {
+    const { error: insertError } = await supabase.from("participants").insert(payload);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitBulkParticipants(data) {
+    const { error: insertError } = await supabase.from("participants").insert(data);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function submitBulkEpisodes(data) {
+    const { error: insertError } = await supabase.from("episodes").insert(data);
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true };
+  }
+
+  // ===== PERSIST COMPUTED RESULTS TO DB =====
+  async function persistIndicatorResults(results) {
+    if (!results.length) return { success: true };
+    const rows = results.map((r) => ({
+      indicator_id: r.indicator_id,
+      version_id: r.version_id,
+      period: r.period,
+      value: r.value,
+      numerator: r.numerator,
+      denominator: r.denominator,
+      target: r.target,
+      performance: r.performance,
+      status: r.status,
+      data_points_used: r.data_points_used,
+      data_coverage: r.data_coverage
+    }));
+    const { error: upsertError } = await supabase
+      .from("indicator_results")
+      .upsert(rows, { onConflict: "indicator_id,period" });
+    if (upsertError) return { success: false, error: upsertError };
+    await loadAll();
+    return { success: true };
+  }
+
   const value = useMemo(
     () => ({
-      loading,
-      error,
-      objectives,
-      activities,
-      indicators,
-      evidence,
-      departments,
-      periods,
-      users,
-      assets,
-      metrics,
-      submissions,
-      activePeriodId,
-      currentPeriod: periods.find((period) => period.status === "open")?.name ?? "No open period",
-      submitIndicatorValue,
-      submitBulkMetrics,
-      createActivity,
-      submitCheckin,
-      addEvidence,
-      addSubmissionLog,
-      createDepartment,
-      createReportingPeriod,
-      updateUserRole,
+      loading, error,
+      // Original data
+      objectives, activities, indicators, evidence, departments, periods, users,
+      assets, metrics, submissions, activePeriodId,
+      currentPeriod: periods.find((p) => p.status === "open")?.name ?? "No active reporting period",
+      // NEW: Multi-source data
+      participants, episodes, surveyResponses, followUpData,
+      governedIndicators, indicatorResults: indicatorResults, assetScoresData,
+      indicatorApprovals,
+      // NEW: Computed engine outputs
+      dataSources, computedResults, computedAssetScores, signalBlocks, domainSummary,
+      // Original mutations
+      submitIndicatorValue, submitBulkMetrics, createActivity, submitCheckin,
+      addEvidence, addSubmissionLog, createDepartment, createReportingPeriod, updateUserRole,
+      // NEW mutations
+      createGovernedIndicator, submitIndicatorForApproval, approveIndicator,
+      rejectIndicator, deprecateIndicator,
+      submitSurveyResponse, submitBulkSurveys, submitFollowUp,
+      submitParticipant, submitBulkParticipants, submitBulkEpisodes,
+      persistIndicatorResults,
       reload: loadAll
     }),
-    [activities, activePeriodId, assets, departments, error, evidence, indicators, loading, objectives, periods, submissions, users, metrics, loadAll]
+    [
+      loading, error, objectives, activities, indicators, evidence, departments, periods, users,
+      assets, metrics, submissions, activePeriodId,
+      participants, episodes, surveyResponses, followUpData,
+      governedIndicators, indicatorResults, assetScoresData, indicatorApprovals,
+      dataSources, computedResults, computedAssetScores, signalBlocks, domainSummary,
+      loadAll
+    ]
   );
 
   return <MELDataContext.Provider value={value}>{children}</MELDataContext.Provider>;
@@ -377,10 +582,9 @@ export function useMELDataContext() {
   if (!context) {
     throw new Error("useMELDataContext must be used within MELDataProvider");
   }
-
   return context;
 }
 
 function formatStatus(status) {
-  return (status || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return (status || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

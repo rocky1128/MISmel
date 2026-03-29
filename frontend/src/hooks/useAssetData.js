@@ -58,8 +58,8 @@ export default function useAssetData(assetSlug) {
       },
       {
         label: "Indicator Score",
-        value: `${Math.round(assetIndicators.reduce((sum, indicator) => sum + indicator.performanceScore, 0) / Math.max(assetIndicators.length, 1))}%`,
-        trend: Math.round(assetIndicators.filter((indicator) => indicator.performanceScore >= 80).length - assetIndicators.filter((indicator) => indicator.performanceScore < 60).length)
+        value: `${Math.round(assetIndicators.reduce((sum, i) => sum + i.performanceScore, 0) / Math.max(assetIndicators.length, 1))}%`,
+        trend: Math.round(assetIndicators.filter((i) => i.performanceScore >= 80).length - assetIndicators.filter((i) => i.performanceScore < 60).length)
       }
     ],
     [assetIndicators, assetMetrics, trendSeries]

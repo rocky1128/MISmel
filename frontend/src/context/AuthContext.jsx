@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { hasSupabaseConfig, supabase } from "../lib/supabaseClient";
 
 const AuthContext = createContext(null);
+const AUTH_INIT_TIMEOUT_MS = 5000;
+const PROFILE_LOAD_TIMEOUT_MS = 4000;
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -17,32 +19,78 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     async function init() {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(s);
-      if (s?.user) await loadProfile(s.user.id, mounted);
-      setLoading(false);
+      try {
+        const {
+          data: { session: s }
+        } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_INIT_TIMEOUT_MS,
+          "Authentication bootstrap timed out."
+        );
+
+        if (!mounted) return;
+        setSession(s);
+
+        if (s?.user) {
+          await loadProfile(s.user.id, mounted);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        if (!mounted) return;
+        console.warn("[auth] Failed to initialize session, falling back to login.", error);
+        setSession(null);
+        setProfile(null);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     }
 
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
-      setSession(s);
-      if (s?.user) await loadProfile(s.user.id, mounted);
-      else setProfile(null);
-      setLoading(false);
+      try {
+        if (!mounted) return;
+        setSession(s);
+        if (s?.user) await loadProfile(s.user.id, mounted);
+        else setProfile(null);
+      } catch (error) {
+        if (!mounted) return;
+        console.warn("[auth] Failed to refresh auth state.", error);
+        setProfile(null);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     });
 
     return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   async function loadProfile(userId, mounted) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("full_name, email, role, department_id")
-      .eq("id", userId)
-      .single();
-    if (mounted) setProfile(data ?? { full_name: "User", email: "", role: "contributor" });
+    try {
+      const { data } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("full_name, email, role, department_id")
+          .eq("id", userId)
+          .single(),
+        PROFILE_LOAD_TIMEOUT_MS,
+        "Profile lookup timed out."
+      );
+
+      if (mounted) {
+        setProfile(data ?? { full_name: "User", email: "", role: "contributor" });
+      }
+    } catch (error) {
+      console.warn("[auth] Failed to load profile, using fallback profile.", error);
+      if (mounted) {
+        setProfile({ full_name: "User", email: "", role: "contributor" });
+      }
+    }
   }
 
   const value = useMemo(() => ({
@@ -82,4 +130,13 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(message)), timeoutMs)
+    )
+  ]);
 }

@@ -1,4 +1,5 @@
 import { AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export function PageLoading({
   title = "Loading page",
@@ -34,12 +35,39 @@ export function PageError({
   );
 }
 
-export function EmptyPanel({ icon: Icon, title, text }) {
+export function EmptyPanel({ icon: Icon, title, text, actions = [], children }) {
   return (
     <div className="empty-state">
       {Icon ? <Icon size={40} className="empty-state-icon" /> : null}
       <div className="empty-state-title">{title}</div>
       <div className="empty-state-text">{text}</div>
+      {actions.length ? (
+        <div className="empty-state-actions">
+          {actions.map((action) => {
+            const className = action.variant === "secondary" ? "btn btn-outline btn-sm" : "btn btn-primary btn-sm";
+            if (action.to) {
+              return (
+                <Link key={`${action.label}-${action.to}`} to={action.to} className={className}>
+                  {action.label}
+                </Link>
+              );
+            }
+            if (action.href) {
+              return (
+                <a key={`${action.label}-${action.href}`} href={action.href} className={className}>
+                  {action.label}
+                </a>
+              );
+            }
+            return (
+              <button key={action.label} type="button" className={className} onClick={action.onClick}>
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {children}
     </div>
   );
 }

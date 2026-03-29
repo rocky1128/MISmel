@@ -1,10 +1,11 @@
+import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import useMELData from "../hooks/useMELData";
 import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
 
 export default function AdminSettings() {
-  const { departments, periods, users, currentPeriod, loading, createDepartment, createReportingPeriod, updateUserRole } = useMELData();
+  const { departments, periods, users, assets, indicators, currentPeriod, loading, createDepartment, createReportingPeriod, updateUserRole } = useMELData();
   const [showDept, setShowDept] = useState(false);
   const [showPeriod, setShowPeriod] = useState(false);
   const [showRole, setShowRole] = useState(false);
@@ -14,10 +15,43 @@ export default function AdminSettings() {
       periods: periods.length,
       departments: departments.length,
       users: users.length,
+      assets: assets.length,
+      indicators: indicators.length,
       activePeriod: currentPeriod
     }),
-    [currentPeriod, departments.length, periods.length, users.length]
+    [assets.length, currentPeriod, departments.length, indicators.length, periods.length, users.length]
   );
+  const setupTasks = [
+    {
+      title: "Create an active reporting period",
+      done: periods.some((period) => period.status === "open"),
+      detail: "Required before manual submissions and uploads can be saved.",
+      actionLabel: "Add Period",
+      action: () => setShowPeriod(true)
+    },
+    {
+      title: "Define departments",
+      done: departments.length > 0,
+      detail: "Departments keep ownership and accountability organized.",
+      actionLabel: "Add Department",
+      action: () => setShowDept(true)
+    },
+    {
+      title: "Create assets and indicators",
+      done: assets.length > 0 && indicators.length > 0,
+      detail: "Dashboards and data entry become meaningful after these are configured.",
+      linkLabel: "Open Indicators",
+      linkTo: "/indicators"
+    },
+    {
+      title: "Assign user roles",
+      done: users.some((user) => user.role && user.role !== "viewer"),
+      detail: "Give contributors and approvers the right permissions before rollout.",
+      actionLabel: "Assign Role",
+      action: () => setShowRole(true)
+    }
+  ];
+  const completedSetup = setupTasks.filter((task) => task.done).length;
 
   if (loading) {
     return (
@@ -53,6 +87,45 @@ export default function AdminSettings() {
         <SummaryTile label="Departments" value={summary.departments} text="Org units available for assignment" />
         <SummaryTile label="Users" value={summary.users} text="Profiles currently visible to admins" />
         <SummaryTile label="Open Period" value={summary.activePeriod} text="Current active reporting window" />
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <div className="section-copy">
+            <div className="section-title">Workspace Setup</div>
+            <div className="section-text">
+              Use this checklist to move the workspace from first-run setup to live reporting.
+            </div>
+          </div>
+          <div className="badge badge-purple">
+            <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
+            {completedSetup}/{setupTasks.length} complete
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="setup-checklist">
+            {setupTasks.map((task) => (
+              <div key={task.title} className={`setup-task ${task.done ? "done" : ""}`}>
+                <div className={`setup-task-status ${task.done ? "done" : "pending"}`}>
+                  {task.done ? "Done" : "Next"}
+                </div>
+                <div className="setup-task-copy">
+                  <div className="setup-task-title">{task.title}</div>
+                  <div className="setup-task-text">{task.detail}</div>
+                </div>
+                {task.action ? (
+                  <button type="button" className="btn btn-outline btn-sm" onClick={task.action}>
+                    {task.actionLabel}
+                  </button>
+                ) : (
+                  <Link to={task.linkTo} className="btn btn-outline btn-sm">
+                    {task.linkLabel}
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid-2">

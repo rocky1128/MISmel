@@ -33,9 +33,9 @@ export default function useDashboardData() {
   const activityHealth = useMemo(
     () => ({
       total: mel.activities.length,
-      completed: mel.activities.filter((activity) => activity.status === "completed").length,
-      active: mel.activities.filter((activity) => activity.status === "in_progress").length,
-      overdue: mel.activities.filter((activity) => activity.status === "overdue").length
+      completed: mel.activities.filter((a) => a.status === "completed").length,
+      active: mel.activities.filter((a) => a.status === "in_progress").length,
+      overdue: mel.activities.filter((a) => a.status === "overdue").length
     }),
     [mel.activities]
   );
