@@ -1,0 +1,10 @@
+project_id = "mel-mis"
+
+[functions.calculate-scores]
+verify_jwt = true
+
+[functions.send-reminders]
+verify_jwt = true
+
+[functions.generate-report]
+verify_jwt = true
