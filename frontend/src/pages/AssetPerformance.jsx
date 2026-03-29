@@ -1,236 +1,246 @@
 import { useMemo, useState } from "react";
-import { Building2, TrendingUp } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import useMELData from "../hooks/useMELData";
-import { aggregateMetrics, calculatePerformance, getBadgeClass, getPerformanceLabel, getPerformanceStatus } from "../lib/scoreUtils";
-import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Bar, BarChart } from "recharts";
+import { useNavigate, useParams } from "react-router-dom";
+import useAssetData from "../hooks/useAssetData";
+import PageHeader from "../components/layout/PageHeader";
+import KPICard from "../components/ui/KPICard";
+import SectionContainer from "../components/ui/SectionContainer";
+import ChartCard from "../components/ui/ChartCard";
+import InsightCard from "../components/ui/InsightCard";
+import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
+
+const TABS = ["Overview", "Engagement", "Outcomes", "Trends"];
+const ASSET_LABELS = {
+  "virtual-university": "Virtual University",
+  hangout: "Hangout",
+  "springboard-tv": "Springboard TV"
+};
 
 export default function AssetPerformance() {
-  const { assets, metrics, indicators, loading } = useMELData();
-  const [selected, setSelected] = useState("");
+  const { assetSlug = "virtual-university" } = useParams();
+  const navigate = useNavigate();
+  const { loading, error, asset, assetIndicators, platformRows, trendSeries, assetKpis, assetInsights } = useAssetData(assetSlug);
+  const [tab, setTab] = useState("Overview");
 
-  const byAsset = useMemo(() => aggregateMetrics(metrics, "assetId"), [metrics]);
-
-  const assetIndicators = useMemo(
-    () => (selected ? indicators.filter((indicator) => indicator.assetId === selected) : indicators.filter((indicator) => indicator.assetId)),
-    [indicators, selected]
-  );
-
-  const chartData = useMemo(
-    () =>
-      assets
-        .filter((asset) => asset.type === "media")
-        .map((asset) => ({
-          name: asset.name,
-          views: byAsset[asset.id]?.views || 0,
-          reach: byAsset[asset.id]?.unique_reach || 0
-        })),
-    [assets, byAsset]
-  );
-
-  const summary = useMemo(
-    () => ({
-      assets: assets.length,
-      linkedIndicators: indicators.filter((indicator) => indicator.assetId).length,
-      trackedMetrics: metrics.length,
-      selectedLabel: selected ? assets.find((asset) => asset.id === selected)?.name || "Selected asset" : "All assets"
-    }),
-    [assets, indicators, metrics.length, selected]
+  const relatedIndicators = useMemo(
+    () => [...assetIndicators].sort((left, right) => right.performanceScore - left.performanceScore),
+    [assetIndicators]
   );
 
   if (loading) {
     return (
       <PageLoading
         title="Loading asset performance"
-        description="Aggregating asset metrics and linked indicator results for comparison."
+        description="Assembling KPI, engagement, outcome, and trend data for this institutional asset."
       />
+    );
+  }
+
+  if (error) {
+    return (
+      <PageError
+        title="Asset performance could not load"
+        description="This page depends on asset-linked metrics and indicators."
+        message={error}
+      />
+    );
+  }
+
+  if (!asset) {
+    return (
+      <div className="card">
+        <EmptyPanel
+          title="Asset not found"
+          text="Choose one of the configured institutional assets from the sidebar."
+        />
+      </div>
     );
   }
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <div className="page-breadcrumb">Performance</div>
-            <h1 className="page-title">Asset Performance</h1>
-            <p className="page-subtitle">
-              Compare institutional assets using aggregated metrics and the indicators attached to each one.
-            </p>
+      <PageHeader
+        eyebrow="Institutional Assets"
+        title={asset.name}
+        description={asset.description || "Performance view for this institutional asset."}
+        actions={
+          <div className="tab-strip">
+            {Object.entries(ASSET_LABELS).map(([slug, label]) => (
+              <button
+                key={slug}
+                className={`tab-pill ${assetSlug === slug ? "active" : ""}`}
+                onClick={() => navigate(`/assets/${slug}`)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="summary-strip">
-        <SummaryTile label="Total Assets" value={summary.assets} text="Configured assets in the workspace" />
-        <SummaryTile label="Linked Indicators" value={summary.linkedIndicators} text="Indicators connected to assets" />
-        <SummaryTile label="Tracked Metrics" value={summary.trackedMetrics} text="Raw metric rows available for analysis" />
-        <SummaryTile label="Current Focus" value={summary.selectedLabel} text="Use the filter to narrow the view" />
-      </div>
-
-      <div className="toolbar">
-        <select className="filter-select" value={selected} onChange={(event) => setSelected(event.target.value)}>
-          <option value="">All Assets</option>
-          {assets.map((asset) => (
-            <option key={asset.id} value={asset.id}>
-              {asset.name}
-            </option>
-          ))}
-        </select>
-        <div className="toolbar-spacer" />
-        <span className="toolbar-note">{assetIndicators.length} linked indicators in view</span>
-      </div>
-
-      {assets.length === 0 ? (
-        <div className="card">
-          <EmptyPanel
-            icon={Building2}
-            title="No assets configured"
-            text="Add assets in the database before this performance view can compare them."
+      <div className="kpi-grid">
+        {assetKpis.map((kpi) => (
+          <KPICard
+            key={kpi.label}
+            label={kpi.label}
+            value={kpi.value}
+            trend={kpi.trend}
+            tone={kpi.trend < -5 ? "critical" : kpi.trend < 5 ? "warning" : "good"}
           />
-        </div>
-      ) : (
-        <>
-          <div className="metrics-grid">
-            {assets.map((asset) => {
-              const aggregate = byAsset[asset.id] || {};
-              const isActive = !selected || selected === asset.id;
-              return (
-                <div
-                  key={asset.id}
-                  className="card metric-card"
-                  onClick={() => setSelected(selected === asset.id ? "" : asset.id)}
-                  style={{ cursor: "pointer", opacity: isActive ? 1 : 0.48, transition: "opacity 0.2s" }}
-                >
-                  <div className="metric-card-top">
-                    <div className="metric-icon green"><Building2 size={16} /></div>
-                    <span className="badge badge-gray" style={{ fontSize: 10 }}>{cap(asset.type)}</span>
-                  </div>
-                  <div className="metric-value">{(aggregate.views || 0).toLocaleString()}</div>
-                  <div className="metric-label">{asset.name}</div>
-                  <div className="metric-subtext">{(aggregate.unique_reach || 0).toLocaleString()} reach</div>
-                </div>
-              );
-            })}
-          </div>
+        ))}
+      </div>
 
-          {chartData.some((item) => item.views > 0) ? (
-            <div className="card">
-              <div className="card-header">
-                <div className="section-copy">
-                  <div className="section-title">Views and Reach by Asset</div>
-                  <div className="section-text">
-                    Compare top-line media output across the asset portfolio.
-                  </div>
-                </div>
-                <TrendingUp size={16} style={{ color: "var(--gray-400)" }} />
-              </div>
-              <div className="card-body">
-                <div style={{ width: "100%", height: 300 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="views" fill="var(--purple-500)" name="Views" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="reach" fill="var(--green-500)" name="Reach" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          ) : null}
+      <div className="tab-strip">
+        {TABS.map((entry) => (
+          <button key={entry} className={`tab-pill ${tab === entry ? "active" : ""}`} onClick={() => setTab(entry)}>
+            {entry}
+          </button>
+        ))}
+      </div>
 
-          <div className="card">
-            <div className="card-header">
-              <div className="section-copy">
-                <div className="section-title">Linked Indicator Performance</div>
-                <div className="section-text">
-                  See how indicators attached to assets are pacing against their targets.
-                </div>
-              </div>
-            </div>
-            <div className="card-body flush">
-              {assetIndicators.length ? (
-                <div className="table-container">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Code</th>
-                        <th>Indicator</th>
-                        <th>Asset</th>
-                        <th>Target</th>
-                        <th>Actual</th>
-                        <th>Performance</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assetIndicators.map((indicator) => {
-                        const performance = calculatePerformance(indicator.actual, indicator.target);
-                        const status = getPerformanceStatus(performance);
-                        return (
-                          <tr key={indicator.id}>
-                            <td style={{ fontWeight: 700, color: "var(--purple-700)" }}>{indicator.code}</td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{indicator.name}</div>
-                              {indicator.indicatorType ? <div className="table-detail">{cap(indicator.indicatorType)}</div> : null}
-                            </td>
-                            <td><span className="badge badge-gray">{indicator.assetName}</span></td>
-                            <td>{formatValue(indicator.target)}</td>
-                            <td style={{ fontWeight: 700 }}>{formatValue(indicator.actual)}</td>
-                            <td>
-                              <div className="dashboard-value-inline">
-                                <div className="progress-bar" style={{ width: 72 }}>
-                                  <div
-                                    className={`progress-fill ${status}`}
-                                    style={{ width: `${Math.min(performance, 100)}%` }}
-                                  />
-                                </div>
-                                <span style={{ fontSize: 12, fontWeight: 700 }}>{performance}%</span>
-                              </div>
-                            </td>
-                            <td>
-                              <span className={`badge ${getBadgeClass(status)}`}>
-                                <span className="badge-dot" />
-                                {getPerformanceLabel(performance)}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <EmptyPanel
-                  title="No linked indicators in this view"
-                  text={`There are no indicators linked to ${selected ? "the selected asset" : "the current asset set"}.`}
+      {tab === "Overview" ? (
+        <div className="two-column-grid">
+          <SectionContainer
+            title="Overview"
+            description="A compact view of the asset's overall contribution and current strategic posture."
+          >
+            <div className="insight-grid">
+              {assetInsights.map((insight) => (
+                <InsightCard
+                  key={insight.title}
+                  title={insight.title}
+                  text={insight.text}
+                  emphasis={insight.emphasis}
+                  tone={insight.tone}
                 />
-              )}
+              ))}
             </div>
+          </SectionContainer>
+
+          <ChartCard
+            title="Indicator Snapshot"
+            description="Linked indicators reveal whether the asset is producing the intended outcomes."
+            footer="Interpretation: use low-scoring indicators here to choose the next asset intervention."
+          >
+            <table className="list-table">
+              <tbody>
+                {relatedIndicators.slice(0, 6).map((indicator) => (
+                  <tr key={indicator.id}>
+                    <td>
+                      <div style={{ fontWeight: 700 }}>{indicator.name}</div>
+                      <div className="table-detail">{indicator.pillar}</div>
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>{indicator.performanceScore}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ChartCard>
+        </div>
+      ) : null}
+
+      {tab === "Engagement" ? (
+        <div className="two-column-grid">
+          <ChartCard
+            title="Channel Comparison"
+            description="Compare reach and views across the channels contributing to this asset."
+          >
+            <div style={{ width: "100%", height: 320 }}>
+              <ResponsiveContainer>
+                <BarChart data={platformRows}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="source" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="views" fill="var(--purple-500)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="reach" fill="var(--green-500)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          <SectionContainer
+            title="Engagement Detail"
+            description="Use this panel to identify which channels deserve more distribution attention."
+          >
+            <table className="list-table">
+              <tbody>
+                {platformRows.map((row) => (
+                  <tr key={row.source}>
+                    <td>
+                      <div style={{ fontWeight: 700 }}>{row.source}</div>
+                    </td>
+                    <td style={{ textAlign: "right" }}>{Math.round(row.engagement * 100)}%</td>
+                    <td style={{ textAlign: "right" }}>{row.followers.toLocaleString()} followers</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </SectionContainer>
+        </div>
+      ) : null}
+
+      {tab === "Outcomes" ? (
+        <SectionContainer
+          title="Outcome Indicators"
+          description="Compare the strongest and weakest linked indicators to understand where this asset is helping or holding back strategy."
+        >
+          {relatedIndicators.length ? (
+            <div className="two-column-grid">
+              <table className="list-table">
+                <tbody>
+                  {relatedIndicators.slice(0, 5).map((indicator) => (
+                    <tr key={indicator.id}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{indicator.name}</div>
+                        <div className="table-detail">Top performing</div>
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>{indicator.performanceScore}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <table className="list-table">
+                <tbody>
+                  {[...relatedIndicators].reverse().slice(0, 5).map((indicator) => (
+                    <tr key={indicator.id}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{indicator.name}</div>
+                        <div className="table-detail">Needs intervention</div>
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>{indicator.performanceScore}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyPanel title="No linked indicators" text="This asset does not yet have indicators attached to it." />
+          )}
+        </SectionContainer>
+      ) : null}
+
+      {tab === "Trends" ? (
+        <ChartCard
+          title="Trend Lines"
+          description="Time-series movement across views, reach, followers, and engagement."
+          footer="Interpretation: trend direction matters more than raw spikes. Use this to decide whether performance is stabilizing or deteriorating."
+        >
+          <div style={{ width: "100%", height: 360 }}>
+            <ResponsiveContainer>
+              <LineChart data={trendSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="views" stroke="var(--purple-500)" strokeWidth={2} />
+                <Line type="monotone" dataKey="unique_reach" stroke="var(--green-500)" strokeWidth={2} />
+                <Line type="monotone" dataKey="new_followers" stroke="#0f766e" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </>
-      )}
+        </ChartCard>
+      ) : null}
     </div>
   );
-}
-
-function SummaryTile({ label, value, text }) {
-  return (
-    <div className="summary-tile">
-      <div className="summary-tile-label">{label}</div>
-      <div className="summary-tile-value">{value}</div>
-      <div className="summary-tile-text">{text}</div>
-    </div>
-  );
-}
-
-function cap(value) {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
-}
-
-function formatValue(value) {
-  return value === null || value === undefined || value === "" ? "--" : value;
 }

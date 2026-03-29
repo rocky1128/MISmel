@@ -43,19 +43,10 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-hero">
         <div className="auth-hero-content">
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 12,
-              background: "linear-gradient(135deg, rgba(141,198,63,0.3), rgba(141,198,63,0.1))",
-              display: "grid", placeItems: "center", fontWeight: 800, fontSize: 18, color: "#8DC63F"
-            }}>
-              MEL
-            </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>Springboard</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 600, letterSpacing: "0.06em" }}>
-                ROAD SHOW FOUNDATION
-              </div>
+          <div className="auth-hero-lockup">
+            <div className="auth-hero-kicker">Springboard Road Show Foundation</div>
+            <div className="auth-hero-logo-panel">
+              <img src="/springboard-logo.png" alt="Springboard Road Show Foundation" />
             </div>
           </div>
 
@@ -83,6 +74,16 @@ export default function Login() {
             <div className="auth-hero-feature">
               <div className="auth-hero-feature-icon"><Shield size={16} /></div>
               Role-based access control and audit trails
+            </div>
+          </div>
+
+          <div className="auth-hero-media">
+            <img
+              src="/springboard-community.jpg"
+              alt="Springboard Road Show Foundation community event"
+            />
+            <div className="auth-hero-media-copy">
+              Built for decision-making grounded in community impact, inclusive participation, and measurable learning.
             </div>
           </div>
         </div>

@@ -1,15 +1,14 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import AppShell from "./components/layout/AppShell";
+import { MELDataProvider } from "./context/MELDataContext";
+import Layout from "./components/layout/Layout";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import IndicatorRegistry from "./pages/IndicatorRegistry";
-import DataEntry from "./pages/DataEntry";
+import ExecutiveDashboard from "./pages/ExecutiveDashboard";
+import OperationsDashboard from "./pages/OperationsDashboard";
 import AssetPerformance from "./pages/AssetPerformance";
-import MediaAnalytics from "./pages/MediaAnalytics";
-import WorkplanTracker from "./pages/WorkplanTracker";
-import EvidenceLibrary from "./pages/EvidenceLibrary";
-import SubmissionLog from "./pages/SubmissionLog";
+import DataEntry from "./pages/DataEntry";
+import IndicatorRegistry from "./pages/IndicatorRegistry";
+import DataQuality from "./pages/DataQuality";
 import AdminSettings from "./pages/AdminSettings";
 
 function ProtectedRoutes() {
@@ -17,10 +16,13 @@ function ProtectedRoutes() {
 
   if (loading) {
     return (
-      <div style={{ display: "grid", placeItems: "center", height: "100vh", background: "#F8F8FC" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 40, height: 40, border: "3px solid #E8E5F0", borderTopColor: "#5B2D86", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-          <div style={{ color: "#5B2D86", fontWeight: 600, fontSize: 14 }}>Loading MEL MIS...</div>
+      <div style={{ display: "grid", placeItems: "center", minHeight: "100vh", background: "#f8fafc" }}>
+        <div className="state-panel state-panel-centered" style={{ minHeight: 260, minWidth: 320 }}>
+          <div className="spinner" />
+          <h2 className="state-panel-title">Loading MEL MIS</h2>
+          <p className="state-panel-text">
+            Authenticating your workspace and preparing the decision-support dashboards.
+          </p>
         </div>
       </div>
     );
@@ -31,20 +33,27 @@ function ProtectedRoutes() {
   }
 
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/indicators" element={<IndicatorRegistry />} />
-        <Route path="/data-entry" element={<DataEntry />} />
-        <Route path="/assets" element={<AssetPerformance />} />
-        <Route path="/media" element={<MediaAnalytics />} />
-        <Route path="/workplan" element={<WorkplanTracker />} />
-        <Route path="/evidence" element={<EvidenceLibrary />} />
-        <Route path="/submissions" element={<SubmissionLog />} />
-        <Route path="/admin" element={<AdminSettings />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </AppShell>
+    <MELDataProvider>
+      <Layout>
+        <Routes>
+          <Route path="/dashboard" element={<ExecutiveDashboard />} />
+          <Route path="/strategic-performance" element={<OperationsDashboard />} />
+          <Route path="/assets/:assetSlug" element={<AssetPerformance />} />
+          <Route path="/data-collection" element={<DataEntry />} />
+          <Route path="/indicators" element={<IndicatorRegistry />} />
+          <Route path="/data-quality" element={<DataQuality />} />
+          <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/assets" element={<Navigate to="/assets/virtual-university" replace />} />
+          <Route path="/data-entry" element={<Navigate to="/data-collection" replace />} />
+          <Route path="/workplan" element={<Navigate to="/strategic-performance" replace />} />
+          <Route path="/media" element={<Navigate to="/assets/virtual-university" replace />} />
+          <Route path="/evidence" element={<Navigate to="/data-quality" replace />} />
+          <Route path="/submissions" element={<Navigate to="/data-quality" replace />} />
+          <Route path="/admin" element={<Navigate to="/settings" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Layout>
+    </MELDataProvider>
   );
 }
 
