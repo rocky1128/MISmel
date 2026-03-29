@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Building2, TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import useMELData from "../hooks/useMELData";
-import { calculatePerformance, getPerformanceStatus, getPerformanceLabel, getBadgeClass, aggregateMetrics } from "../lib/scoreUtils";
+import { aggregateMetrics, calculatePerformance, getBadgeClass, getPerformanceLabel, getPerformanceStatus } from "../lib/scoreUtils";
+import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
 
 export default function AssetPerformance() {
   const { assets, metrics, indicators, loading } = useMELData();
@@ -10,70 +11,122 @@ export default function AssetPerformance() {
 
   const byAsset = useMemo(() => aggregateMetrics(metrics, "assetId"), [metrics]);
 
-  const assetInds = useMemo(() =>
-    selected ? indicators.filter(i => i.assetId === selected) : indicators.filter(i => i.assetId),
+  const assetIndicators = useMemo(
+    () => (selected ? indicators.filter((indicator) => indicator.assetId === selected) : indicators.filter((indicator) => indicator.assetId)),
     [indicators, selected]
   );
 
-  const chartData = useMemo(() => {
-    return assets.filter(a => a.type === "media").map(a => ({
-      name: a.name,
-      views: byAsset[a.id]?.views || 0,
-      reach: byAsset[a.id]?.unique_reach || 0
-    }));
-  }, [assets, byAsset]);
+  const chartData = useMemo(
+    () =>
+      assets
+        .filter((asset) => asset.type === "media")
+        .map((asset) => ({
+          name: asset.name,
+          views: byAsset[asset.id]?.views || 0,
+          reach: byAsset[asset.id]?.unique_reach || 0
+        })),
+    [assets, byAsset]
+  );
 
-  if (loading) return <div style={{ padding: 60, textAlign: "center", color: "var(--gray-400)" }}>Loading...</div>;
+  const summary = useMemo(
+    () => ({
+      assets: assets.length,
+      linkedIndicators: indicators.filter((indicator) => indicator.assetId).length,
+      trackedMetrics: metrics.length,
+      selectedLabel: selected ? assets.find((asset) => asset.id === selected)?.name || "Selected asset" : "All assets"
+    }),
+    [assets, indicators, metrics.length, selected]
+  );
+
+  if (loading) {
+    return (
+      <PageLoading
+        title="Loading asset performance"
+        description="Aggregating asset metrics and linked indicator results for comparison."
+      />
+    );
+  }
 
   return (
-    <div>
+    <div className="page-stack">
       <div className="page-header">
         <div className="page-header-row">
           <div>
             <div className="page-breadcrumb">Performance</div>
             <h1 className="page-title">Asset Performance</h1>
-            <p className="page-subtitle">Track performance of institutional assets with aggregated metrics and indicator results.</p>
+            <p className="page-subtitle">
+              Compare institutional assets using aggregated metrics and the indicators attached to each one.
+            </p>
           </div>
         </div>
       </div>
 
+      <div className="summary-strip">
+        <SummaryTile label="Total Assets" value={summary.assets} text="Configured assets in the workspace" />
+        <SummaryTile label="Linked Indicators" value={summary.linkedIndicators} text="Indicators connected to assets" />
+        <SummaryTile label="Tracked Metrics" value={summary.trackedMetrics} text="Raw metric rows available for analysis" />
+        <SummaryTile label="Current Focus" value={summary.selectedLabel} text="Use the filter to narrow the view" />
+      </div>
+
       <div className="toolbar">
-        <select className="filter-select" value={selected} onChange={e => setSelected(e.target.value)}>
+        <select className="filter-select" value={selected} onChange={(event) => setSelected(event.target.value)}>
           <option value="">All Assets</option>
-          {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {assets.map((asset) => (
+            <option key={asset.id} value={asset.id}>
+              {asset.name}
+            </option>
+          ))}
         </select>
         <div className="toolbar-spacer" />
-        <span style={{ fontSize: 13, color: "var(--gray-500)" }}>{assets.length} assets</span>
+        <span className="toolbar-note">{assetIndicators.length} linked indicators in view</span>
       </div>
 
       {assets.length === 0 ? (
-        <div className="card"><div className="empty-state"><Building2 size={40} className="empty-state-icon" /><div className="empty-state-title">No assets configured</div><div className="empty-state-text">Add assets to the database to track their performance.</div></div></div>
+        <div className="card">
+          <EmptyPanel
+            icon={Building2}
+            title="No assets configured"
+            text="Add assets in the database before this performance view can compare them."
+          />
+        </div>
       ) : (
         <>
-          <div className="metrics-grid" style={{ marginBottom: 20 }}>
-            {assets.map(a => {
-              const agg = byAsset[a.id] || {};
-              const isActive = !selected || selected === a.id;
+          <div className="metrics-grid">
+            {assets.map((asset) => {
+              const aggregate = byAsset[asset.id] || {};
+              const isActive = !selected || selected === asset.id;
               return (
-                <div key={a.id} className="card metric-card" onClick={() => setSelected(selected === a.id ? "" : a.id)}
-                  style={{ cursor: "pointer", opacity: isActive ? 1 : 0.45, transition: "opacity 0.2s" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div
+                  key={asset.id}
+                  className="card metric-card"
+                  onClick={() => setSelected(selected === asset.id ? "" : asset.id)}
+                  style={{ cursor: "pointer", opacity: isActive ? 1 : 0.48, transition: "opacity 0.2s" }}
+                >
+                  <div className="metric-card-top">
                     <div className="metric-icon green"><Building2 size={16} /></div>
-                    <span className="badge badge-gray" style={{ fontSize: 10 }}>{cap(a.type)}</span>
+                    <span className="badge badge-gray" style={{ fontSize: 10 }}>{cap(asset.type)}</span>
                   </div>
-                  <div className="metric-value">{(agg.views || 0).toLocaleString()}</div>
-                  <div className="metric-label">{a.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--gray-400)", marginTop: 4 }}>{(agg.unique_reach || 0).toLocaleString()} reach</div>
+                  <div className="metric-value">{(aggregate.views || 0).toLocaleString()}</div>
+                  <div className="metric-label">{asset.name}</div>
+                  <div className="metric-subtext">{(aggregate.unique_reach || 0).toLocaleString()} reach</div>
                 </div>
               );
             })}
           </div>
 
-          {chartData.some(d => d.views > 0) && (
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div className="card-header"><h3 className="card-title">Views & Reach by Asset</h3><TrendingUp size={16} style={{ color: "var(--gray-400)" }} /></div>
+          {chartData.some((item) => item.views > 0) ? (
+            <div className="card">
+              <div className="card-header">
+                <div className="section-copy">
+                  <div className="section-title">Views and Reach by Asset</div>
+                  <div className="section-text">
+                    Compare top-line media output across the asset portfolio.
+                  </div>
+                </div>
+                <TrendingUp size={16} style={{ color: "var(--gray-400)" }} />
+              </div>
               <div className="card-body">
-                <div style={{ width: "100%", height: 280 }}>
+                <div style={{ width: "100%", height: 300 }}>
                   <ResponsiveContainer>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
@@ -87,40 +140,75 @@ export default function AssetPerformance() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="card">
-            <div className="card-header"><h3 className="card-title">Linked Indicator Performance</h3></div>
+            <div className="card-header">
+              <div className="section-copy">
+                <div className="section-title">Linked Indicator Performance</div>
+                <div className="section-text">
+                  See how indicators attached to assets are pacing against their targets.
+                </div>
+              </div>
+            </div>
             <div className="card-body flush">
-              {assetInds.length ? (
+              {assetIndicators.length ? (
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Code</th><th>Indicator</th><th>Asset</th><th>Target</th><th>Actual</th><th>Performance</th><th>Status</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Code</th>
+                        <th>Indicator</th>
+                        <th>Asset</th>
+                        <th>Target</th>
+                        <th>Actual</th>
+                        <th>Performance</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {assetInds.map(i => {
-                        const perf = calculatePerformance(i.actual, i.target);
-                        const s = getPerformanceStatus(perf);
+                      {assetIndicators.map((indicator) => {
+                        const performance = calculatePerformance(indicator.actual, indicator.target);
+                        const status = getPerformanceStatus(performance);
                         return (
-                          <tr key={i.id}>
-                            <td style={{ fontWeight: 600, color: "var(--purple-700)" }}>{i.code}</td>
-                            <td>{i.name}</td>
-                            <td><span className="badge badge-gray">{i.assetName}</span></td>
-                            <td>{i.target}</td>
-                            <td style={{ fontWeight: 600 }}>{i.actual ?? "—"}</td>
+                          <tr key={indicator.id}>
+                            <td style={{ fontWeight: 700, color: "var(--purple-700)" }}>{indicator.code}</td>
                             <td>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div className="progress-bar" style={{ width: 60 }}><div className={`progress-fill ${s}`} style={{ width: `${Math.min(perf, 100)}%` }} /></div>
-                                <span style={{ fontSize: 12, fontWeight: 600 }}>{perf}%</span>
+                              <div style={{ fontWeight: 600 }}>{indicator.name}</div>
+                              {indicator.indicatorType ? <div className="table-detail">{cap(indicator.indicatorType)}</div> : null}
+                            </td>
+                            <td><span className="badge badge-gray">{indicator.assetName}</span></td>
+                            <td>{formatValue(indicator.target)}</td>
+                            <td style={{ fontWeight: 700 }}>{formatValue(indicator.actual)}</td>
+                            <td>
+                              <div className="dashboard-value-inline">
+                                <div className="progress-bar" style={{ width: 72 }}>
+                                  <div
+                                    className={`progress-fill ${status}`}
+                                    style={{ width: `${Math.min(performance, 100)}%` }}
+                                  />
+                                </div>
+                                <span style={{ fontSize: 12, fontWeight: 700 }}>{performance}%</span>
                               </div>
                             </td>
-                            <td><span className={`badge ${getBadgeClass(s)}`}><span className="badge-dot" />{getPerformanceLabel(perf)}</span></td>
+                            <td>
+                              <span className={`badge ${getBadgeClass(status)}`}>
+                                <span className="badge-dot" />
+                                {getPerformanceLabel(performance)}
+                              </span>
+                            </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-              ) : <div className="empty-state"><div className="empty-state-text">No indicators linked to {selected ? "this asset" : "any asset"}.</div></div>}
+              ) : (
+                <EmptyPanel
+                  title="No linked indicators in this view"
+                  text={`There are no indicators linked to ${selected ? "the selected asset" : "the current asset set"}.`}
+                />
+              )}
             </div>
           </div>
         </>
@@ -129,4 +217,20 @@ export default function AssetPerformance() {
   );
 }
 
-function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+function SummaryTile({ label, value, text }) {
+  return (
+    <div className="summary-tile">
+      <div className="summary-tile-label">{label}</div>
+      <div className="summary-tile-value">{value}</div>
+      <div className="summary-tile-text">{text}</div>
+    </div>
+  );
+}
+
+function cap(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+}
+
+function formatValue(value) {
+  return value === null || value === undefined || value === "" ? "--" : value;
+}

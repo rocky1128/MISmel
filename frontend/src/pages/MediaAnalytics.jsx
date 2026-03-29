@@ -1,67 +1,119 @@
 import { useMemo, useState } from "react";
 import { BarChart3 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import useMELData from "../hooks/useMELData";
 import { aggregateMetrics } from "../lib/scoreUtils";
+import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
 
 const PLATFORMS = ["facebook", "youtube", "tiktok", "linkedin"];
-const PCOLORS = { facebook: "#1877F2", youtube: "#FF0000", tiktok: "#010101", linkedin: "#0A66C2" };
-const PLABELS = { facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok", linkedin: "LinkedIn" };
+const PLATFORM_COLORS = { facebook: "#1877F2", youtube: "#FF0000", tiktok: "#010101", linkedin: "#0A66C2" };
+const PLATFORM_LABELS = { facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok", linkedin: "LinkedIn" };
 const METRICS = ["views", "unique_reach", "watch_time_min", "completion_rate", "engagement_rate", "cta_clicks", "shares", "new_followers"];
-const MLABELS = { views: "Views", unique_reach: "Unique Reach", watch_time_min: "Watch Time (min)", completion_rate: "Completion Rate (%)", engagement_rate: "Engagement Rate (%)", cta_clicks: "CTA Clicks", shares: "Shares / Saves", new_followers: "New Followers" };
+const METRIC_LABELS = {
+  views: "Views",
+  unique_reach: "Unique Reach",
+  watch_time_min: "Watch Time (min)",
+  completion_rate: "Completion Rate (%)",
+  engagement_rate: "Engagement Rate (%)",
+  cta_clicks: "CTA Clicks",
+  shares: "Shares / Saves",
+  new_followers: "New Followers"
+};
 
 export default function MediaAnalytics() {
   const { assets, metrics, loading } = useMELData();
   const [selectedAsset, setSelectedAsset] = useState("");
 
-  const filtered = useMemo(() => selectedAsset ? metrics.filter(m => m.assetId === selectedAsset) : metrics, [metrics, selectedAsset]);
+  const filtered = useMemo(
+    () => (selectedAsset ? metrics.filter((metric) => metric.assetId === selectedAsset) : metrics),
+    [metrics, selectedAsset]
+  );
   const bySource = useMemo(() => aggregateMetrics(filtered, "source"), [filtered]);
-  const totals = useMemo(() => { const t = {}; for (const m of filtered) { t[m.name] = (t[m.name] || 0) + m.value; } return t; }, [filtered]);
+  const totals = useMemo(() => {
+    const nextTotals = {};
+    for (const metric of filtered) {
+      nextTotals[metric.name] = (nextTotals[metric.name] || 0) + metric.value;
+    }
+    return nextTotals;
+  }, [filtered]);
 
-  const chartData = useMemo(() =>
-    PLATFORMS.map(p => ({ name: PLABELS[p], views: bySource[p]?.views || 0, reach: bySource[p]?.unique_reach || 0 })),
+  const chartData = useMemo(
+    () =>
+      PLATFORMS.map((platform) => ({
+        name: PLATFORM_LABELS[platform],
+        views: bySource[platform]?.views || 0,
+        reach: bySource[platform]?.unique_reach || 0
+      })),
     [bySource]
   );
 
-  if (loading) return <div style={{ padding: 60, textAlign: "center", color: "var(--gray-400)" }}>Loading...</div>;
+  const mediaAssets = assets.filter((asset) => asset.type === "media");
 
-  const mediaAssets = assets.filter(a => a.type === "media");
+  if (loading) {
+    return (
+      <PageLoading
+        title="Loading media analytics"
+        description="Aggregating media metrics across assets and distribution platforms."
+      />
+    );
+  }
 
   return (
-    <div>
+    <div className="page-stack">
       <div className="page-header">
         <div className="page-header-row">
           <div>
             <div className="page-breadcrumb">Performance</div>
             <h1 className="page-title">Media Analytics</h1>
-            <p className="page-subtitle">Platform performance breakdown across Facebook, YouTube, TikTok, and LinkedIn.</p>
+            <p className="page-subtitle">
+              Break down reach, views, watch time, and growth across Facebook, YouTube, TikTok, and LinkedIn.
+            </p>
           </div>
         </div>
       </div>
 
+      <div className="summary-strip">
+        <SummaryTile label="Total Views" value={(totals.views || 0).toLocaleString()} text="Across the current media selection" />
+        <SummaryTile label="Total Reach" value={(totals.unique_reach || 0).toLocaleString()} text="Unique audience reached so far" />
+        <SummaryTile label="Watch Time" value={(totals.watch_time_min || 0).toLocaleString()} text="Minutes consumed across channels" />
+        <SummaryTile label="New Followers" value={(totals.new_followers || 0).toLocaleString()} text="Audience growth from tracked content" />
+      </div>
+
       <div className="toolbar">
-        <select className="filter-select" value={selectedAsset} onChange={e => setSelectedAsset(e.target.value)}>
+        <select className="filter-select" value={selectedAsset} onChange={(event) => setSelectedAsset(event.target.value)}>
           <option value="">All Media Assets</option>
-          {mediaAssets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {mediaAssets.map((asset) => (
+            <option key={asset.id} value={asset.id}>
+              {asset.name}
+            </option>
+          ))}
         </select>
+        <div className="toolbar-spacer" />
+        <span className="toolbar-note">{filtered.length} metric rows in view</span>
       </div>
 
       {metrics.length === 0 ? (
-        <div className="card"><div className="empty-state"><BarChart3 size={40} className="empty-state-icon" /><div className="empty-state-title">No media metrics</div><div className="empty-state-text">Upload metrics data via Data Entry to see platform analytics.</div></div></div>
+        <div className="card">
+          <EmptyPanel
+            icon={BarChart3}
+            title="No media metrics available"
+            text="Upload media metrics through Data Entry to activate this analytics view."
+          />
+        </div>
       ) : (
         <>
-          <div className="metrics-grid" style={{ marginBottom: 20 }}>
-            <MC label="Total Views" value={(totals.views || 0).toLocaleString()} sub="Across all platforms" />
-            <MC label="Total Reach" value={(totals.unique_reach || 0).toLocaleString()} sub="Unique audience" />
-            <MC label="Watch Time" value={(totals.watch_time_min || 0).toLocaleString()} sub="Minutes watched" />
-            <MC label="New Followers" value={(totals.new_followers || 0).toLocaleString()} sub="Audience growth" />
-          </div>
-
-          <div className="grid-2" style={{ marginBottom: 20 }}>
+          <div className="grid-2">
             <div className="card">
-              <div className="card-header"><h3 className="card-title">Views by Platform</h3></div>
+              <div className="card-header">
+                <div className="section-copy">
+                  <div className="section-title">Views by Platform</div>
+                  <div className="section-text">
+                    Compare total views and reach side by side across supported channels.
+                  </div>
+                </div>
+              </div>
               <div className="card-body">
-                <div style={{ width: "100%", height: 260 }}>
+                <div style={{ width: "100%", height: 280 }}>
                   <ResponsiveContainer>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F5" />
@@ -77,23 +129,38 @@ export default function MediaAnalytics() {
             </div>
 
             <div className="card">
-              <div className="card-header"><h3 className="card-title">Platform Share</h3></div>
+              <div className="card-header">
+                <div className="section-copy">
+                  <div className="section-title">Platform Share</div>
+                  <div className="section-text">
+                    Relative platform contribution based on tracked view volume.
+                  </div>
+                </div>
+              </div>
               <div className="card-body">
-                <div className="stack" style={{ gap: 14 }}>
-                  {PLATFORMS.map(p => {
-                    const v = bySource[p]?.views || 0;
-                    const max = Math.max(...PLATFORMS.map(pp => bySource[pp]?.views || 0), 1);
+                <div className="platform-list">
+                  {PLATFORMS.map((platform) => {
+                    const value = bySource[platform]?.views || 0;
+                    const max = Math.max(...PLATFORMS.map((item) => bySource[item]?.views || 0), 1);
                     return (
-                      <div key={p}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-                          <span style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: PCOLORS[p] }} />
-                            {PLABELS[p]}
+                      <div key={platform}>
+                        <div className="platform-row">
+                          <span className="platform-chip">
+                            <span className="platform-swatch" style={{ background: PLATFORM_COLORS[platform] }} />
+                            {PLATFORM_LABELS[platform]}
                           </span>
-                          <span style={{ fontWeight: 700 }}>{v.toLocaleString()}</span>
+                          <span style={{ fontWeight: 700 }}>{value.toLocaleString()}</span>
                         </div>
                         <div className="progress-bar" style={{ height: 10 }}>
-                          <div style={{ height: "100%", width: `${(v / max) * 100}%`, background: PCOLORS[p], borderRadius: 100, transition: "width 0.4s" }} />
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${(value / max) * 100}%`,
+                              background: PLATFORM_COLORS[platform],
+                              borderRadius: 100,
+                              transition: "width 0.4s"
+                            }}
+                          />
                         </div>
                       </div>
                     );
@@ -103,20 +170,42 @@ export default function MediaAnalytics() {
             </div>
           </div>
 
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card-header"><h3 className="card-title">Platform Comparison</h3></div>
+          <div className="card">
+            <div className="card-header">
+              <div className="section-copy">
+                <div className="section-title">Platform Comparison</div>
+                <div className="section-text">
+                  Detailed metric comparison across all supported distribution platforms.
+                </div>
+              </div>
+            </div>
             <div className="card-body flush">
               <div className="table-container">
                 <table>
-                  <thead><tr><th>Metric</th>{PLATFORMS.map(p => <th key={p}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: PCOLORS[p] }} />{PLABELS[p]}</span></th>)}<th>Total</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      {PLATFORMS.map((platform) => (
+                        <th key={platform}>
+                          <span className="platform-chip">
+                            <span className="platform-swatch" style={{ background: PLATFORM_COLORS[platform] }} />
+                            {PLATFORM_LABELS[platform]}
+                          </span>
+                        </th>
+                      ))}
+                      <th>Total</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {METRICS.map(m => {
-                      const isRate = m.includes("rate");
+                    {METRICS.map((metric) => {
+                      const isRate = metric.includes("rate");
                       return (
-                        <tr key={m}>
-                          <td style={{ fontWeight: 600 }}>{MLABELS[m]}</td>
-                          {PLATFORMS.map(p => <td key={p}>{fmt(bySource[p]?.[m] || 0, isRate)}</td>)}
-                          <td style={{ fontWeight: 700 }}>{fmt(totals[m] || 0, isRate)}</td>
+                        <tr key={metric}>
+                          <td style={{ fontWeight: 700 }}>{METRIC_LABELS[metric]}</td>
+                          {PLATFORMS.map((platform) => (
+                            <td key={platform}>{formatMetric(bySource[platform]?.[metric] || 0, isRate)}</td>
+                          ))}
+                          <td style={{ fontWeight: 700 }}>{formatMetric(totals[metric] || 0, isRate)}</td>
                         </tr>
                       );
                     })}
@@ -126,25 +215,44 @@ export default function MediaAnalytics() {
             </div>
           </div>
 
-          {!selectedAsset && mediaAssets.length > 1 && (
+          {!selectedAsset && mediaAssets.length > 1 ? (
             <div className="card">
-              <div className="card-header"><h3 className="card-title">Asset Comparison</h3></div>
+              <div className="card-header">
+                <div className="section-copy">
+                  <div className="section-title">Asset Comparison</div>
+                  <div className="section-text">
+                    Compare aggregate media output across all tracked media assets.
+                  </div>
+                </div>
+              </div>
               <div className="card-body flush">
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Asset</th><th>Views</th><th>Reach</th><th>Watch Time</th><th>Engagement</th><th>Followers</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Asset</th>
+                        <th>Views</th>
+                        <th>Reach</th>
+                        <th>Watch Time</th>
+                        <th>Engagement</th>
+                        <th>Followers</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {mediaAssets.map(a => {
-                        const am = metrics.filter(m => m.assetId === a.id);
-                        const agg = {}; for (const m of am) agg[m.name] = (agg[m.name] || 0) + m.value;
+                      {mediaAssets.map((asset) => {
+                        const assetMetrics = metrics.filter((metric) => metric.assetId === asset.id);
+                        const aggregate = {};
+                        for (const metric of assetMetrics) {
+                          aggregate[metric.name] = (aggregate[metric.name] || 0) + metric.value;
+                        }
                         return (
-                          <tr key={a.id}>
-                            <td style={{ fontWeight: 600 }}>{a.name}</td>
-                            <td>{(agg.views || 0).toLocaleString()}</td>
-                            <td>{(agg.unique_reach || 0).toLocaleString()}</td>
-                            <td>{(agg.watch_time_min || 0).toLocaleString()}</td>
-                            <td>{(agg.engagement_rate || 0).toFixed(1)}%</td>
-                            <td>{(agg.new_followers || 0).toLocaleString()}</td>
+                          <tr key={asset.id}>
+                            <td style={{ fontWeight: 700 }}>{asset.name}</td>
+                            <td>{(aggregate.views || 0).toLocaleString()}</td>
+                            <td>{(aggregate.unique_reach || 0).toLocaleString()}</td>
+                            <td>{(aggregate.watch_time_min || 0).toLocaleString()}</td>
+                            <td>{(aggregate.engagement_rate || 0).toFixed(1)}%</td>
+                            <td>{(aggregate.new_followers || 0).toLocaleString()}</td>
                           </tr>
                         );
                       })}
@@ -153,21 +261,23 @@ export default function MediaAnalytics() {
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </>
       )}
     </div>
   );
 }
 
-function MC({ label, value, sub }) {
+function SummaryTile({ label, value, text }) {
   return (
-    <div className="card metric-card">
-      <div className="metric-value">{value}</div>
-      <div className="metric-label">{label}</div>
-      <div style={{ fontSize: 12, color: "var(--gray-400)", marginTop: 4 }}>{sub}</div>
+    <div className="summary-tile">
+      <div className="summary-tile-label">{label}</div>
+      <div className="summary-tile-value">{value}</div>
+      <div className="summary-tile-text">{text}</div>
     </div>
   );
 }
 
-function fmt(v, isRate) { return isRate ? v.toFixed(1) : v.toLocaleString(); }
+function formatMetric(value, isRate) {
+  return isRate ? value.toFixed(1) : value.toLocaleString();
+}

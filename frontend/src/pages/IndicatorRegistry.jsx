@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Target, Plus, Lock } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Plus, Target } from "lucide-react";
 import useMELData from "../hooks/useMELData";
-import { calculatePerformance, getPerformanceStatus, getPerformanceLabel, getBadgeClass } from "../lib/scoreUtils";
+import { calculatePerformance, getBadgeClass, getPerformanceLabel, getPerformanceStatus } from "../lib/scoreUtils";
+import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
 
 export default function IndicatorRegistry() {
   const { indicators, assets, currentPeriod, loading, error, submitIndicatorValue } = useMELData();
@@ -11,135 +12,257 @@ export default function IndicatorRegistry() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ indicator_id: "", actual_value: "", comment: "" });
   const [formMsg, setFormMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  if (loading) return <Loader />;
+  const filtered = useMemo(
+    () =>
+      indicators.filter((indicator) => {
+        if (filterCat && indicator.kpiCategory !== filterCat) return false;
+        if (filterAsset && indicator.assetId !== filterAsset) return false;
+        if (filterStatus) {
+          const status = getPerformanceStatus(calculatePerformance(indicator.actual, indicator.target));
+          if (status !== filterStatus) return false;
+        }
+        return true;
+      }),
+    [filterAsset, filterCat, filterStatus, indicators]
+  );
 
-  const filtered = indicators.filter(i => {
-    if (filterCat && i.kpiCategory !== filterCat) return false;
-    if (filterAsset && i.assetId !== filterAsset) return false;
-    if (filterStatus) {
-      const s = getPerformanceStatus(calculatePerformance(i.actual, i.target));
-      if (s !== filterStatus) return false;
-    }
-    return true;
-  });
+  const summary = useMemo(
+    () => ({
+      total: indicators.length,
+      onTrack: indicators.filter((indicator) => calculatePerformance(indicator.actual, indicator.target) >= 90).length,
+      attention: indicators.filter((indicator) => {
+        const performance = calculatePerformance(indicator.actual, indicator.target);
+        return performance >= 60 && performance < 90;
+      }).length,
+      atRisk: indicators.filter((indicator) => calculatePerformance(indicator.actual, indicator.target) < 60).length
+    }),
+    [indicators]
+  );
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  if (loading) {
+    return (
+      <PageLoading
+        title="Loading indicator registry"
+        description="Collecting indicator definitions, targets, and the latest submitted values."
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <PageError
+        title="Indicator registry could not load"
+        description="The registry depends on indicator definitions, linked assets, and reporting values."
+        message={error}
+      />
+    );
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSaving(true);
     setFormMsg(null);
-    const res = await submitIndicatorValue(formData);
-    if (res.success) {
+    const response = await submitIndicatorValue(formData);
+    if (response.success) {
       setFormMsg({ type: "success", text: "Value saved successfully." });
-      setFormData(d => ({ ...d, actual_value: "", comment: "" }));
+      setFormData((current) => ({ ...current, actual_value: "", comment: "" }));
     } else {
-      setFormMsg({ type: "error", text: res.error?.message || "Failed to save." });
+      setFormMsg({ type: "error", text: response.error?.message || "Failed to save." });
     }
+    setSaving(false);
   }
 
   return (
-    <div>
+    <div className="page-stack">
       <div className="page-header">
         <div className="page-header-row">
           <div>
             <div className="page-breadcrumb">Planning</div>
             <h1 className="page-title">Indicator Registry</h1>
-            <p className="page-subtitle">Define, track, and manage all institutional KPIs with baseline, target, and performance data.</p>
+            <p className="page-subtitle">
+              Keep KPI definitions, targets, ownership, and reporting performance aligned in one registry.
+            </p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-            <PenIcon size={14} /> Enter Value
-          </button>
+          <div className="page-actions">
+            <div className="badge badge-purple">
+              <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
+              {currentPeriod}
+            </div>
+            <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+              <Plus size={14} /> Enter Value
+            </button>
+          </div>
         </div>
       </div>
 
+      <div className="summary-strip">
+        <SummaryTile label="Total Indicators" value={summary.total} text="All configured KPIs" />
+        <SummaryTile label="On Track" value={summary.onTrack} text="Performance at or above 90%" />
+        <SummaryTile label="Attention" value={summary.attention} text="Indicators in the warning band" />
+        <SummaryTile label="At Risk" value={summary.atRisk} text="Indicators below the expected pace" />
+      </div>
+
       <div className="toolbar">
-        <select className="filter-select" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
+        <select className="filter-select" value={filterCat} onChange={(event) => setFilterCat(event.target.value)}>
           <option value="">All Categories</option>
           <option value="institutional">Institutional</option>
           <option value="asset">Asset</option>
           <option value="process">Process</option>
           <option value="outcome">Outcome</option>
         </select>
-        <select className="filter-select" value={filterAsset} onChange={e => setFilterAsset(e.target.value)}>
+        <select className="filter-select" value={filterAsset} onChange={(event) => setFilterAsset(event.target.value)}>
           <option value="">All Assets</option>
-          {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {assets.map((asset) => (
+            <option key={asset.id} value={asset.id}>
+              {asset.name}
+            </option>
+          ))}
         </select>
-        <select className="filter-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+        <select className="filter-select" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)}>
           <option value="">All Statuses</option>
           <option value="green">On Track</option>
           <option value="amber">Needs Attention</option>
           <option value="red">At Risk</option>
         </select>
         <div className="toolbar-spacer" />
-        <span style={{ fontSize: 13, color: "var(--gray-500)" }}>{filtered.length} indicators</span>
+        <span className="toolbar-note">{filtered.length} indicators in view</span>
       </div>
 
-      {showForm && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header"><h3 className="card-title">Enter Indicator Value</h3></div>
+      {showForm ? (
+        <div className="card">
           <div className="card-body">
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Indicator</label>
-                  <select className="form-select" value={formData.indicator_id}
-                    onChange={e => setFormData(d => ({ ...d, indicator_id: e.target.value }))} required>
-                    <option value="">Select indicator</option>
-                    {indicators.map(i => <option key={i.id} value={i.id}>{i.code} - {i.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Actual Value</label>
-                  <input className="form-input" type="number" step="any" value={formData.actual_value}
-                    onChange={e => setFormData(d => ({ ...d, actual_value: e.target.value }))} required />
+            <div className="form-panel">
+              <div className="form-panel-head">
+                <div className="section-copy">
+                  <div className="section-kicker">Capture</div>
+                  <div className="section-title">Enter Indicator Value</div>
+                  <div className="section-text">
+                    Submit the latest actual value for an indicator and attach optional reporting context.
+                  </div>
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Comment</label>
-                <textarea className="form-textarea" rows={2} value={formData.comment}
-                  onChange={e => setFormData(d => ({ ...d, comment: e.target.value }))} placeholder="Optional note" />
-              </div>
-              {formMsg && <div className={`callout callout-${formMsg.type === "success" ? "success" : "error"}`}>{formMsg.text}</div>}
-              <div><button className="btn btn-primary" type="submit">Save Value</button></div>
-            </form>
+              <form className="form-grid" onSubmit={handleSubmit} style={{ maxWidth: 720 }}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Indicator</label>
+                    <select
+                      className="form-select"
+                      value={formData.indicator_id}
+                      onChange={(event) => setFormData((current) => ({ ...current, indicator_id: event.target.value }))}
+                      required
+                    >
+                      <option value="">Select indicator</option>
+                      {indicators.map((indicator) => (
+                        <option key={indicator.id} value={indicator.id}>
+                          {indicator.code} - {indicator.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Actual Value</label>
+                    <input
+                      className="form-input"
+                      type="number"
+                      step="any"
+                      value={formData.actual_value}
+                      onChange={(event) => setFormData((current) => ({ ...current, actual_value: event.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Comment</label>
+                  <textarea
+                    className="form-textarea"
+                    rows={3}
+                    value={formData.comment}
+                    onChange={(event) => setFormData((current) => ({ ...current, comment: event.target.value }))}
+                    placeholder="Optional note"
+                  />
+                </div>
+                {formMsg ? (
+                  <div className={`callout callout-${formMsg.type === "success" ? "success" : "error"}`}>
+                    {formMsg.text}
+                  </div>
+                ) : null}
+                <div className="form-panel-actions">
+                  <button className="btn btn-primary" type="submit" disabled={saving}>
+                    {saving ? "Saving..." : "Save Value"}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="card">
+        <div className="card-header">
+          <div className="section-copy">
+            <div className="section-title">Indicator Table</div>
+            <div className="section-text">
+              Review baseline, target, actual, and status details for the current filtered set.
+            </div>
+          </div>
+        </div>
         <div className="card-body flush">
           {filtered.length ? (
             <div className="table-container">
               <table>
                 <thead>
-                  <tr><th>Code</th><th>Indicator</th><th>Category</th><th>Frequency</th>
-                    <th>Baseline</th><th>Target</th><th>Actual</th><th>Performance</th><th>Status</th><th>Owner</th></tr>
+                  <tr>
+                    <th>Code</th>
+                    <th>Indicator</th>
+                    <th>Category</th>
+                    <th>Frequency</th>
+                    <th>Baseline</th>
+                    <th>Target</th>
+                    <th>Actual</th>
+                    <th>Performance</th>
+                    <th>Status</th>
+                    <th>Owner</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(ind => {
-                    const perf = calculatePerformance(ind.actual, ind.target);
-                    const status = getPerformanceStatus(perf);
+                  {filtered.map((indicator) => {
+                    const performance = calculatePerformance(indicator.actual, indicator.target);
+                    const status = getPerformanceStatus(performance);
                     return (
-                      <tr key={ind.id}>
-                        <td style={{ fontWeight: 600, color: "var(--purple-700)" }}>{ind.code}</td>
+                      <tr key={indicator.id}>
+                        <td style={{ fontWeight: 700, color: "var(--purple-700)" }}>{indicator.code}</td>
                         <td>
-                          <div style={{ fontWeight: 500 }}>{ind.name}</div>
-                          {ind.assetName && <div style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 2 }}>{ind.assetName}</div>}
+                          <div style={{ fontWeight: 600 }}>{indicator.name}</div>
+                          {indicator.assetName ? <div className="table-detail">{indicator.assetName}</div> : null}
                         </td>
-                        <td><span className="badge badge-purple">{cap(ind.kpiCategory)}</span></td>
-                        <td>{cap(ind.frequency)}</td>
-                        <td>{ind.baseline}</td>
-                        <td style={{ fontWeight: 600 }}>{ind.target}</td>
-                        <td style={{ fontWeight: 600 }}>{ind.actual ?? "—"}</td>
+                        <td><span className="badge badge-purple">{cap(indicator.kpiCategory)}</span></td>
+                        <td>{cap(indicator.frequency)}</td>
+                        <td>{formatValue(indicator.baseline)}</td>
+                        <td style={{ fontWeight: 700 }}>{formatValue(indicator.target)}</td>
+                        <td style={{ fontWeight: 700 }}>{formatValue(indicator.actual)}</td>
                         <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div className="progress-bar" style={{ width: 60 }}>
-                              <div className={`progress-fill ${status}`} style={{ width: `${Math.min(perf, 100)}%` }} />
+                          <div className="dashboard-value-inline">
+                            <div className="progress-bar" style={{ width: 72 }}>
+                              <div
+                                className={`progress-fill ${status}`}
+                                style={{ width: `${Math.min(performance, 100)}%` }}
+                              />
                             </div>
-                            <span style={{ fontSize: 12, fontWeight: 600 }}>{perf}%</span>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{performance}%</span>
                           </div>
                         </td>
-                        <td><span className={`badge ${getBadgeClass(status)}`}><span className="badge-dot" />{getPerformanceLabel(perf)}</span></td>
-                        <td style={{ fontSize: 13 }}>{ind.owner}</td>
+                        <td>
+                          <span className={`badge ${getBadgeClass(status)}`}>
+                            <span className="badge-dot" />
+                            {getPerformanceLabel(performance)}
+                          </span>
+                        </td>
+                        <td>{indicator.owner}</td>
                       </tr>
                     );
                   })}
@@ -147,11 +270,11 @@ export default function IndicatorRegistry() {
               </table>
             </div>
           ) : (
-            <div className="empty-state">
-              <Target size={40} className="empty-state-icon" />
-              <div className="empty-state-title">No indicators found</div>
-              <div className="empty-state-text">Create indicators in the database or adjust filters.</div>
-            </div>
+            <EmptyPanel
+              icon={Target}
+              title="No indicators matched this filter"
+              text="Adjust the filters or create indicators in the database to populate the registry."
+            />
           )}
         </div>
       </div>
@@ -159,8 +282,20 @@ export default function IndicatorRegistry() {
   );
 }
 
-function PenIcon(props) { return <Plus {...props} />; }
-function Loader() {
-  return <div style={{ padding: 60, textAlign: "center", color: "var(--gray-400)" }}>Loading indicators...</div>;
+function SummaryTile({ label, value, text }) {
+  return (
+    <div className="summary-tile">
+      <div className="summary-tile-label">{label}</div>
+      <div className="summary-tile-value">{value}</div>
+      <div className="summary-tile-text">{text}</div>
+    </div>
+  );
 }
-function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+
+function formatValue(value) {
+  return value === null || value === undefined || value === "" ? "--" : value;
+}
+
+function cap(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+}
