@@ -1,4 +1,4 @@
-export const MEDIA_ASSET_SLUGS = new Set(["virtual-university", "hangout"]);
+export const MEDIA_ASSET_SLUGS = new Set(["virtual-university", "hangout", "springboard-hangout"]);
 
 export const MEDIA_PLATFORM_OPTIONS = [
   { value: "facebook", label: "Facebook" },
@@ -48,6 +48,28 @@ export const MEDIA_METRIC_FIELDS = [
 export const MEDIA_FIELD_MAP = Object.fromEntries(
   [...MEDIA_CONTEXT_FIELDS, ...MEDIA_METRIC_FIELDS].map((field) => [field.key, field])
 );
+
+export function isMediaAsset(asset) {
+  if (!asset) return false;
+  const slug = String(asset.slug || "").trim().toLowerCase();
+  const name = String(asset.name || "").trim().toLowerCase();
+  return (
+    MEDIA_ASSET_SLUGS.has(slug) ||
+    name === "virtual university" ||
+    name === "springboard hangout" ||
+    name === "hangout"
+  );
+}
+
+export function getMediaAssetLabel(asset) {
+  if (!asset) return "";
+  const slug = String(asset.slug || "").trim().toLowerCase();
+  const name = String(asset.name || "").trim().toLowerCase();
+  if (slug === "hangout" || slug === "springboard-hangout" || name === "hangout" || name === "springboard hangout") {
+    return "Springboard Hangout";
+  }
+  return asset.name || "";
+}
 
 export function createEmptyMediaEntry() {
   return {

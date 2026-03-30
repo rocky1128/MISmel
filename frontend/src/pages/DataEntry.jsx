@@ -8,11 +8,12 @@ import {
   createEmptyMediaEntry,
   GENDER_FIELDS,
   AGE_FIELDS,
+  getMediaAssetLabel,
   getPercentageGroupTotal,
-  MEDIA_ASSET_SLUGS,
   MEDIA_CONTEXT_FIELDS,
   MEDIA_METRIC_FIELDS,
   MEDIA_PLATFORM_OPTIONS,
+  isMediaAsset,
   validateMediaEntry
 } from "../lib/mediaMetrics";
 import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
@@ -29,7 +30,7 @@ export default function DataEntry() {
   const [mode, setMode] = useState("manual");
 
   const mediaAssets = useMemo(
-    () => assets.filter((asset) => MEDIA_ASSET_SLUGS.has(asset.slug)),
+    () => assets.filter((asset) => isMediaAsset(asset)),
     [assets]
   );
   const trackedVideos = useMemo(() => {
@@ -152,7 +153,7 @@ function MediaEntry({ assets, onSubmit, onLog }) {
   const assetOptions = useMemo(
     () => assets.map((asset) => ({
       value: asset.id,
-      label: asset.slug === "hangout" ? "Springboard Hangout" : asset.name
+      label: getMediaAssetLabel(asset)
     })),
     [assets]
   );
@@ -389,7 +390,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
   const assetOptions = useMemo(
     () => assets.map((asset) => ({
       value: asset.id,
-      label: asset.slug === "hangout" ? "Springboard Hangout" : asset.name
+      label: getMediaAssetLabel(asset)
     })),
     [assets]
   );
