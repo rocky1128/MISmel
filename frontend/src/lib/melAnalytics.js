@@ -85,6 +85,26 @@ export function buildTimeSeries(metrics, names = []) {
   return [...buckets.values()].sort((left, right) => new Date(left.date) - new Date(right.date));
 }
 
+export function buildWeeklyTimeSeries(metrics, names = []) {
+  const filtered = metrics.filter((metric) => (names.length ? names.includes(metric.name) : true));
+  const buckets = new Map();
+
+  for (const metric of filtered) {
+    const weekStart = startOfWeek(metric.date);
+    if (!buckets.has(weekStart)) {
+      buckets.set(weekStart, {
+        date: weekStart,
+        label: formatWeekLabel(weekStart)
+      });
+    }
+
+    const bucket = buckets.get(weekStart);
+    bucket[metric.name] = (bucket[metric.name] || 0) + Number(metric.value || 0);
+  }
+
+  return [...buckets.values()].sort((left, right) => new Date(left.date) - new Date(right.date));
+}
+
 export function getPercentDelta(current, previous) {
   if (!previous) return 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -298,24 +318,49 @@ export function buildIndicatorGroups(indicators) {
   };
 }
 
-export function buildAssetInsights(asset, metrics, indicators) {
+export function buildAssetInsights(asset, metrics, indicators, mediaSummary = null) {
   const engagementAverage = averageMetric(metrics, ["engagement_rate"]) * 100;
   const reach = summarizeMetrics(metrics, ["unique_reach"]);
   const followers = summarizeMetrics(metrics, ["new_followers"]);
   const indicatorAverage = average(indicators.map((indicator) => indicator.performanceScore));
+  const trackedVideos = mediaSummary?.trackedVideos || 0;
+  const completionRate = mediaSummary?.averages?.completionRate != null
+    ? Math.round(mediaSummary.averages.completionRate * 100)
+    : null;
+  const topAudienceAge = [
+    { label: "15-17", value: mediaSummary?.averages?.age15to17 },
+    { label: "18-24", value: mediaSummary?.averages?.age18to24 },
+    { label: "25-30", value: mediaSummary?.averages?.age25to30 },
+    { label: "31-35", value: mediaSummary?.averages?.age31to35 },
+    { label: "36+", value: mediaSummary?.averages?.age36Plus }
+  ]
+    .filter((item) => item.value != null)
+    .sort((left, right) => right.value - left.value)[0];
 
   return [
     {
       tone: getStatusTone(indicatorAverage),
       title: `${asset.name} performance snapshot`,
       text: `${asset.name} is averaging ${Math.round(indicatorAverage)}% across linked indicators.`,
-      emphasis: `${compactNumber(reach)} reach and ${compactNumber(followers)} new followers are recorded in the current data set.`
+      emphasis: `${compactNumber(reach)} reach, ${compactNumber(followers)} new followers, and ${trackedVideos} tracked videos are currently recorded.`
     },
     {
       tone: getStatusTone(engagementAverage),
       title: "Engagement quality",
       text: `Average engagement quality is ${Math.round(engagementAverage)}%.`,
-      emphasis: "Use the Engagement tab to isolate the strongest and weakest channels."
+      emphasis: completionRate != null
+        ? `Average completion is ${completionRate}% across the current video set.`
+        : "Use the Engagement tab to isolate the strongest and weakest channels."
+    },
+    {
+      tone: "good",
+      title: "Audience profile",
+      text: mediaSummary?.averages?.femalePct != null && mediaSummary?.averages?.malePct != null
+        ? `Current audience mix averages ${Math.round(mediaSummary.averages.femalePct * 100)}% female and ${Math.round(mediaSummary.averages.malePct * 100)}% male.`
+        : "Audience breakdown will appear here once gender and age data are submitted.",
+      emphasis: topAudienceAge
+        ? `${topAudienceAge.label} is the strongest recorded age bracket so far.`
+        : "Add age-bracket percentages in the media form or upload template to fill this view."
     }
   ];
 }
@@ -343,4 +388,20 @@ function average(values) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function startOfWeek(value) {
+  const date = new Date(value);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString().split("T")[0];
+}
+
+function formatWeekLabel(value) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric"
+  }).format(new Date(value));
 }

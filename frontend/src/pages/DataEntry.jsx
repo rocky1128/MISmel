@@ -1,38 +1,90 @@
 import { useMemo, useState } from "react";
-import { Download, PenLine, Upload } from "lucide-react";
-import SearchSelect from "../components/ui/SearchSelect";
+import { Download, Film, Upload } from "lucide-react";
 import SelectField from "../components/ui/SelectField";
 import useMELData from "../hooks/useMELData";
 import { parseUploadedFile, validateMapping, transformRows, generateCSVTemplate } from "../lib/uploadParser";
+import {
+  buildMediaMetricRows,
+  createEmptyMediaEntry,
+  GENDER_FIELDS,
+  AGE_FIELDS,
+  getPercentageGroupTotal,
+  MEDIA_ASSET_SLUGS,
+  MEDIA_CONTEXT_FIELDS,
+  MEDIA_METRIC_FIELDS,
+  MEDIA_PLATFORM_OPTIONS,
+  validateMediaEntry
+} from "../lib/mediaMetrics";
 import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
 
 export default function DataEntry() {
   const {
-    indicators,
     assets,
+    metrics,
     currentPeriod,
     loading,
-    submitIndicatorValue,
-    submitBulkMetrics,
+    submitMediaMetrics,
     addSubmissionLog
   } = useMELData();
   const [mode, setMode] = useState("manual");
 
+  const mediaAssets = useMemo(
+    () => assets.filter((asset) => MEDIA_ASSET_SLUGS.has(asset.slug)),
+    [assets]
+  );
+  const trackedVideos = useMemo(() => {
+    const keys = new Set();
+    for (const metric of metrics) {
+      if (!mediaAssets.some((asset) => asset.id === metric.assetId)) {
+        continue;
+      }
+      const contentKey = metric.contentKey || metric.metadata?.video_id;
+      if (contentKey) {
+        keys.add(contentKey);
+      }
+    }
+    return keys.size;
+  }, [mediaAssets, metrics]);
+
   const summary = useMemo(
     () => ({
-      indicators: indicators.length,
-      assets: assets.length,
-      modeLabel: mode === "manual" ? "Single entry" : "File import"
+      mediaAssets: mediaAssets.length,
+      trackedVideos,
+      modeLabel: mode === "manual" ? "Media form" : "Bulk upload"
     }),
-    [assets.length, indicators.length, mode]
+    [mediaAssets.length, mode, trackedVideos]
   );
 
   if (loading) {
     return (
       <PageLoading
-        title="Loading data entry"
-        description="Preparing indicators, assets, and import targets."
+        title="Loading media data entry"
+        description="Preparing assets, existing media metrics, and import tools."
       />
+    );
+  }
+
+  if (!mediaAssets.length) {
+    return (
+      <div className="page-stack">
+        <div className="page-header">
+          <div className="page-header-row">
+            <div>
+              <div className="page-breadcrumb">Data entry</div>
+              <h1 className="page-title">Media submissions</h1>
+              <p className="page-subtitle">Capture media performance for Virtual University and Hangout.</p>
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-body">
+            <EmptyPanel
+              title="No media assets are configured"
+              text="Add Virtual University or Hangout in Settings before collecting media metrics here."
+            />
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -42,9 +94,9 @@ export default function DataEntry() {
         <div className="page-header-row">
           <div>
             <div className="page-breadcrumb">Data entry</div>
-            <h1 className="page-title">Enter results</h1>
+            <h1 className="page-title">Media submissions</h1>
             <p className="page-subtitle">
-              Record one result or import a file.
+              Capture per-video performance for Virtual University and Hangout.
             </p>
           </div>
           <div className="page-actions">
@@ -57,114 +109,108 @@ export default function DataEntry() {
       </div>
 
       <div className="summary-strip">
-        <SummaryTile label="Indicators" value={summary.indicators} text="Available for entry" />
-        <SummaryTile label="Assets" value={summary.assets} text="Available for linking" />
-        <SummaryTile label="Mode" value={summary.modeLabel} text="Choose how you want to submit data" />
+        <SummaryTile label="Media assets" value={summary.mediaAssets} text="Virtual University and Hangout" />
+        <SummaryTile label="Videos tracked" value={summary.trackedVideos} text="Unique video IDs already in the system" />
+        <SummaryTile label="Mode" value={summary.modeLabel} text="Choose single-form entry or spreadsheet upload" />
       </div>
 
       <div className="card">
         <div className="card-body">
           <div className="section-intro">
             <div className="section-copy">
-              <div className="section-title">Choose a method</div>
+              <div className="section-title">Choose a submission method</div>
               <div className="section-text">
-                Use single entry for one update at a time, or import a file for batch submissions.
+                Both options save the same media fields, so the dashboards update from one consistent structure.
               </div>
             </div>
           </div>
           <div className="tab-strip" style={{ marginTop: 16 }}>
             <button className={`tab-pill ${mode === "manual" ? "active" : ""}`} onClick={() => setMode("manual")}>
-              <PenLine size={14} /> Single Entry
+              <Film size={14} /> Media Form
             </button>
             <button className={`tab-pill ${mode === "bulk" ? "active" : ""}`} onClick={() => setMode("bulk")}>
-              <Upload size={14} /> File Import
+              <Upload size={14} /> Bulk Upload
             </button>
           </div>
         </div>
       </div>
 
       {mode === "manual" ? (
-        <ManualEntry indicators={indicators} onSubmit={submitIndicatorValue} onLog={addSubmissionLog} />
+        <MediaEntry assets={mediaAssets} onSubmit={submitMediaMetrics} onLog={addSubmissionLog} />
       ) : (
-        <BulkUpload assets={assets} onSubmit={submitBulkMetrics} onLog={addSubmissionLog} />
+        <BulkUpload assets={mediaAssets} onSubmit={submitMediaMetrics} onLog={addSubmissionLog} />
       )}
     </div>
   );
 }
 
-function ManualEntry({ indicators, onSubmit, onLog }) {
-  const [form, setForm] = useState({ indicator_id: "", actual_value: "", comment: "" });
+function MediaEntry({ assets, onSubmit, onLog }) {
+  const [form, setForm] = useState(createEmptyMediaEntry());
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const selectedIndicator = useMemo(
-    () => indicators.find((indicator) => indicator.id === form.indicator_id),
-    [form.indicator_id, indicators]
+  const assetOptions = useMemo(
+    () => assets.map((asset) => ({
+      value: asset.id,
+      label: asset.slug === "hangout" ? "Springboard Hangout" : asset.name
+    })),
+    [assets]
   );
-  const indicatorOptions = useMemo(
-    () =>
-      indicators.map((indicator) => ({
-        value: indicator.id,
-        label: `${indicator.code} - ${indicator.name}`,
-        searchText: `${indicator.code} ${indicator.name} ${indicator.assetName || ""}`
-      })),
-    [indicators]
+  const readiness = Boolean(
+    form.asset_id && form.video_id && form.title_description && form.pub_date && form.snapshot_date && form.platform
   );
+  const genderTotal = getPercentageGroupTotal(form, GENDER_FIELDS);
+  const ageTotal = getPercentageGroupTotal(form, AGE_FIELDS);
 
-  const currentStep = !form.indicator_id ? 0 : !form.actual_value ? 1 : 2;
-  const manualSteps = [
+  const steps = [
     {
-      title: "Choose indicator",
-      text: selectedIndicator ? `${selectedIndicator.code || "Indicator"} selected` : "Pick the indicator to update",
-      state: currentStep > 0 ? "complete" : "current"
+      title: "Basic info",
+      text: readiness ? "Video context is set" : "Choose the asset, video ID, publication date, snapshot date, and platform",
+      state: readiness ? "complete" : "current"
     },
     {
-      title: "Enter value",
-      text: form.actual_value ? `Ready to save ${form.actual_value}` : "Enter the latest reported value",
-      state: currentStep > 1 ? "complete" : currentStep === 1 ? "current" : "pending"
+      title: "Performance",
+      text: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(0, 8)) ? "Core metrics added" : "Add the raw performance numbers",
+      state: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(0, 8)) ? "complete" : readiness ? "current" : "pending"
     },
     {
-      title: "Add note",
-      text: form.comment ? "Note added" : "Add an optional note before saving",
-      state: currentStep === 2 ? "current" : "pending"
+      title: "Audience",
+      text: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(8)) ? "Audience breakdown added" : "Add gender and age percentages if available",
+      state: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(8)) ? "complete" : hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(0, 8)) ? "current" : "pending"
     }
   ];
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const validationErrors = validateMediaEntry(form);
+    if (validationErrors.length) {
+      setMsg({ type: "error", text: validationErrors[0] });
+      return;
+    }
+
+    const rows = buildMediaMetricRows(form);
+    if (!rows.length) {
+      setMsg({ type: "error", text: "Add at least one metric value before saving this video entry." });
+      return;
+    }
+
     setBusy(true);
     setMsg(null);
-    const response = await onSubmit(form);
-    if (response.success) {
-      setMsg({ type: "success", text: "Value recorded successfully." });
-      onLog?.({
-        action: "manual_entry",
-        entityType: "indicator_value",
-        entityId: form.indicator_id,
-        changes: { actual_value: form.actual_value }
-      });
-      setForm((current) => ({ ...current, actual_value: "", comment: "" }));
-    } else {
-      setMsg({ type: "error", text: response.error?.message || "Failed." });
-    }
-    setBusy(false);
-  }
+    const response = await onSubmit(rows);
 
-  if (!indicators.length) {
-    return (
-      <div className="card">
-        <div className="card-body">
-          <EmptyPanel
-            title="No indicators available"
-            text="Create indicators first so manual data entry has valid reporting targets."
-            actions={[
-              { label: "Manage Indicators", to: "/indicators" },
-              { label: "Open Settings", to: "/settings", variant: "secondary" }
-            ]}
-          />
-        </div>
-      </div>
-    );
+    if (response.success) {
+      setMsg({ type: "success", text: `Saved ${rows.length} metric rows for ${form.video_id}.` });
+      onLog?.({
+        action: "manual_media_entry",
+        entityType: "metrics",
+        changes: { asset_id: form.asset_id, video_id: form.video_id, rows: rows.length }
+      });
+      setForm(createEmptyMediaEntry());
+    } else {
+      setMsg({ type: "error", text: response.error?.message || "Failed to save media metrics." });
+    }
+
+    setBusy(false);
   }
 
   return (
@@ -175,79 +221,131 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
             <div className="form-panel-head">
               <div className="section-copy">
                 <div className="section-kicker">Manual</div>
-                <div className="section-title">Enter one result</div>
+                <div className="section-title">Submit one video record</div>
                 <div className="section-text">
-                  Update one indicator at a time and save it immediately.
+                  Enter the video context once, add the raw metrics you have, and the asset dashboard updates from those values.
                 </div>
               </div>
             </div>
 
-            <WorkflowSteps steps={manualSteps} />
+            <WorkflowSteps steps={steps} />
 
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">1. Indicator</div>
-                    <div className="workflow-panel-text">Choose the indicator that should receive this update.</div>
+                    <div className="workflow-panel-title">1. Basic info</div>
+                    <div className="workflow-panel-text">Describe the content item that the metrics belong to.</div>
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Indicator</label>
-                  <SearchSelect
-                    value={form.indicator_id}
-                    onChange={(nextValue) => setForm((current) => ({ ...current, indicator_id: nextValue }))}
-                    options={indicatorOptions}
-                    required
-                    placeholder="Select an indicator"
-                    searchPlaceholder="Search indicators by code or name"
-                    emptyText="No indicators matched your search"
-                    name="indicator_id"
-                  />
-                </div>
-              </div>
 
-              <div className="workflow-panel">
-                <div className="workflow-panel-header">
-                  <div>
-                    <div className="workflow-panel-title">2. Value</div>
-                    <div className="workflow-panel-text">Record the latest value exactly as reported.</div>
-                  </div>
-                </div>
-                <div className="form-row">
+                <div className="form-row form-row-3">
                   <div className="form-group">
-                    <label className="form-label">Actual Value</label>
+                    <label className="form-label">Asset *</label>
+                    <SelectField
+                      value={form.asset_id}
+                      onChange={(nextValue) => setForm((current) => ({ ...current, asset_id: nextValue }))}
+                      options={assetOptions}
+                      placeholder="Select asset"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Video ID *</label>
                     <input
                       className="form-input"
-                      type="number"
-                      step="any"
-                      value={form.actual_value}
-                      onChange={(event) => setForm((current) => ({ ...current, actual_value: event.target.value }))}
-                      required
-                      placeholder="Enter value"
+                      value={form.video_id}
+                      onChange={(event) => setForm((current) => ({ ...current, video_id: event.target.value }))}
+                      placeholder="e.g. VU-021"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Pub Date *</label>
+                    <input
+                      className="form-input"
+                      type="date"
+                      value={form.pub_date}
+                      onChange={(event) => setForm((current) => ({ ...current, pub_date: event.target.value }))}
                     />
                   </div>
                 </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Title / Description *</label>
+                    <textarea
+                      className="form-textarea"
+                      rows={3}
+                      value={form.title_description}
+                      onChange={(event) => setForm((current) => ({ ...current, title_description: event.target.value }))}
+                      placeholder="Title or short description of the video"
+                    />
+                  </div>
+                  <div className="stack">
+                    <div className="form-group">
+                      <label className="form-label">Snapshot Date *</label>
+                      <input
+                        className="form-input"
+                        type="date"
+                        value={form.snapshot_date}
+                        onChange={(event) => setForm((current) => ({ ...current, snapshot_date: event.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Platform *</label>
+                      <SelectField
+                        value={form.platform}
+                        onChange={(nextValue) => setForm((current) => ({ ...current, platform: nextValue }))}
+                        options={MEDIA_PLATFORM_OPTIONS}
+                        placeholder="Select platform"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">3. Note</div>
-                    <div className="workflow-panel-text">
-                      Add a short note if the source or exception needs to be recorded.
-                    </div>
+                    <div className="workflow-panel-title">2. Performance metrics</div>
+                    <div className="workflow-panel-text">Enter percentages as whole numbers like 55 for 55%.</div>
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Comment (optional)</label>
-                  <textarea
-                    className="form-textarea"
-                    rows={3}
-                    value={form.comment}
-                    onChange={(event) => setForm((current) => ({ ...current, comment: event.target.value }))}
-                    placeholder="Context or data source"
-                  />
+
+                <div className="form-row form-row-3">
+                  {MEDIA_METRIC_FIELDS.slice(0, 8).map((field) => (
+                    <MetricInput key={field.key} field={field} value={form[field.key]} onChange={(nextValue) =>
+                      setForm((current) => ({ ...current, [field.key]: nextValue }))
+                    } />
+                  ))}
+                </div>
+              </div>
+
+              <div className="workflow-panel">
+                <div className="workflow-panel-header">
+                  <div>
+                    <div className="workflow-panel-title">3. Audience breakdown</div>
+                    <div className="workflow-panel-text">Add gender and age percentages whenever the platform provides them.</div>
+                  </div>
+                </div>
+
+                <div className="form-section-divider">Gender</div>
+                <div className="table-detail" style={{ marginTop: -4 }}>Total: {genderTotal}%</div>
+                <div className="form-row">
+                  {MEDIA_METRIC_FIELDS.slice(8, 10).map((field) => (
+                    <MetricInput key={field.key} field={field} value={form[field.key]} onChange={(nextValue) =>
+                      setForm((current) => ({ ...current, [field.key]: nextValue }))
+                    } />
+                  ))}
+                </div>
+
+                <div className="form-section-divider">Age brackets</div>
+                <div className="table-detail" style={{ marginTop: -4 }}>Total: {ageTotal}%</div>
+                <div className="form-row form-row-3">
+                  {MEDIA_METRIC_FIELDS.slice(10).map((field) => (
+                    <MetricInput key={field.key} field={field} value={form[field.key]} onChange={(nextValue) =>
+                      setForm((current) => ({ ...current, [field.key]: nextValue }))
+                    } />
+                  ))}
                 </div>
               </div>
 
@@ -255,7 +353,7 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
 
               <div className="workflow-actions">
                 <button className="btn btn-primary" disabled={busy}>
-                  {busy ? "Saving..." : "Save Value"}
+                  {busy ? "Saving..." : "Save Video Record"}
                 </button>
               </div>
             </form>
@@ -265,17 +363,14 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
 
       <div className="stack">
         <WorkflowAside
-          title="Ready to save"
+          title="What this updates"
           items={[
-            { label: "Indicator selected", value: form.indicator_id ? "Ready" : "Pending", tone: form.indicator_id ? "good" : "muted" },
-            { label: "Actual value entered", value: form.actual_value ? "Ready" : "Pending", tone: form.actual_value ? "good" : "muted" },
-            { label: "Context note", value: form.comment ? "Attached" : "Optional", tone: form.comment ? "good" : "muted" }
+            { label: "Asset", value: assetOptions.find((option) => option.value === form.asset_id)?.label || "Pending", tone: form.asset_id ? "good" : "muted" },
+            { label: "Video record", value: form.video_id || "Pending", tone: form.video_id ? "good" : "muted" },
+            { label: "Performance metrics", value: countMetricValues(form, MEDIA_METRIC_FIELDS.slice(0, 8)), tone: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(0, 8)) ? "good" : "muted" },
+            { label: "Audience fields", value: countMetricValues(form, MEDIA_METRIC_FIELDS.slice(8)), tone: hasMetricValues(form, MEDIA_METRIC_FIELDS.slice(8)) ? "good" : "muted" }
           ]}
-          note={
-            selectedIndicator
-              ? `${selectedIndicator.code || "Indicator"} will receive the next saved value.`
-              : "Choose an indicator to begin."
-          }
+          note="Each save writes structured metric rows that feed the asset dashboards for Virtual University and Hangout."
         />
       </div>
     </div>
@@ -291,34 +386,36 @@ function BulkUpload({ assets, onSubmit, onLog }) {
   const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState("");
 
-  const mappingReady = Boolean(parsed && mapping.name && mapping.date && mapping.value);
-  const selectedAsset = useMemo(
-    () => assets.find((asset) => asset.id === assetId),
-    [assetId, assets]
+  const assetOptions = useMemo(
+    () => assets.map((asset) => ({
+      value: asset.id,
+      label: asset.slug === "hangout" ? "Springboard Hangout" : asset.name
+    })),
+    [assets]
   );
   const columnOptions = useMemo(
     () => (parsed?.columns || []).map((column) => ({ value: column, label: column })),
     [parsed]
   );
-  const assetOptions = useMemo(
-    () => assets.map((asset) => ({ value: asset.id, label: asset.name })),
-    [assets]
+  const mappingReady = Boolean(
+    assetId &&
+    MEDIA_CONTEXT_FIELDS.every((field) => !field.required || mapping[field.key])
   );
 
-  const bulkSteps = [
+  const steps = [
     {
       title: "Upload file",
-      text: parsed ? `${fileName || "File"} loaded` : "Attach a CSV or Excel file",
+      text: parsed ? `${fileName || "File"} loaded` : "Attach a spreadsheet with video rows",
       state: parsed ? "complete" : "current"
     },
     {
-      title: "Match columns",
-      text: mappingReady ? "Required columns mapped" : "Match name, date, and value",
+      title: "Match fields",
+      text: mappingReady ? "Required context fields are mapped" : "Match the spreadsheet columns to the media fields",
       state: mappingReady ? "complete" : parsed ? "current" : "pending"
     },
     {
-      title: "Review import",
-      text: parsed ? "Preview sample rows and confirm destination" : "Import becomes available after upload",
+      title: "Import rows",
+      text: parsed ? "Preview sample rows and import" : "Import becomes available after upload",
       state: parsed && mappingReady ? "current" : "pending"
     }
   ];
@@ -326,9 +423,11 @@ function BulkUpload({ assets, onSubmit, onLog }) {
   async function handleFile(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+
     setFileName(file.name);
     setMsg(null);
     setErrors([]);
+
     try {
       const result = await parseUploadedFile(file);
       setParsed(result);
@@ -342,13 +441,13 @@ function BulkUpload({ assets, onSubmit, onLog }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    const validationErrors = validateMapping(mapping);
+    const validationErrors = validateMapping(mapping, assetId);
     if (validationErrors.length) {
       setErrors(validationErrors);
       return;
     }
 
-    const { transformed, errors: rowErrors } = transformRows(parsed.rows, mapping, assetId || null);
+    const { transformed, errors: rowErrors } = transformRows(parsed.rows, mapping, assetId);
     if (rowErrors.length) {
       setErrors(rowErrors);
     }
@@ -357,13 +456,20 @@ function BulkUpload({ assets, onSubmit, onLog }) {
     }
 
     setBusy(true);
+    setMsg(null);
     const response = await onSubmit(transformed);
+
     if (response.success) {
-      setMsg({ type: "success", text: `Imported ${transformed.length} rows.` });
-      onLog?.({ action: "bulk_upload", entityType: "metrics", changes: { rows: transformed.length, file: fileName } });
+      setMsg({ type: "success", text: `Imported ${transformed.length} metric rows from ${parsed.rows.length} video records.` });
+      onLog?.({
+        action: "bulk_media_upload",
+        entityType: "metrics",
+        changes: { asset_id: assetId, rows: transformed.length, file: fileName }
+      });
     } else {
       setMsg({ type: "error", text: response.error?.message || "Upload failed." });
     }
+
     setBusy(false);
   }
 
@@ -372,7 +478,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
     const blob = new Blob([csv], { type: "text/csv" });
     const anchor = document.createElement("a");
     anchor.href = URL.createObjectURL(blob);
-    anchor.download = "mel_metrics_template.csv";
+    anchor.download = "media_metrics_template.csv";
     anchor.click();
   }
 
@@ -384,9 +490,9 @@ function BulkUpload({ assets, onSubmit, onLog }) {
             <div className="form-panel-head">
               <div className="section-copy">
                 <div className="section-kicker">Bulk</div>
-                <div className="section-title">Import a file</div>
+                <div className="section-title">Upload media rows</div>
                 <div className="section-text">
-                  Upload a file, match the required columns, then review the sample before import.
+                  Use one spreadsheet row per video record. The upload expands each row into the underlying metric entries automatically.
                 </div>
               </div>
               <div className="form-panel-actions">
@@ -396,21 +502,30 @@ function BulkUpload({ assets, onSubmit, onLog }) {
               </div>
             </div>
 
-            <WorkflowSteps steps={bulkSteps} />
+            <WorkflowSteps steps={steps} />
 
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
                     <div className="workflow-panel-title">1. File</div>
-                    <div className="workflow-panel-text">
-                      Choose the spreadsheet that contains the metrics to import.
-                    </div>
+                    <div className="workflow-panel-text">Choose the spreadsheet that contains the video records.</div>
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">File (CSV / XLSX)</label>
-                  <input type="file" accept=".csv,.xlsx,.xls" className="form-input" onChange={handleFile} />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Asset *</label>
+                    <SelectField
+                      value={assetId}
+                      onChange={setAssetId}
+                      options={assetOptions}
+                      placeholder="Select asset"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">File (CSV / XLSX)</label>
+                    <input type="file" accept=".csv,.xlsx,.xls" className="form-input" onChange={handleFile} />
+                  </div>
                 </div>
                 {parsed ? (
                   <div className="callout callout-info">
@@ -423,63 +538,39 @@ function BulkUpload({ assets, onSubmit, onLog }) {
                 <div className="workflow-panel">
                   <div className="workflow-panel-header">
                     <div>
-                      <div className="workflow-panel-title">2. Columns</div>
-                      <div className="workflow-panel-text">
-                        Match the source columns to the required fields.
+                      <div className="workflow-panel-title">2. Column mapping</div>
+                      <div className="workflow-panel-text">Match your spreadsheet columns to the media fields below.</div>
+                    </div>
+                  </div>
+
+                  <div className="form-section-divider">Required context fields</div>
+                  <div className="form-row form-row-3">
+                    {MEDIA_CONTEXT_FIELDS.map((field) => (
+                      <div className="form-group" key={field.key}>
+                        <label className="form-label">{field.label}{field.required ? " *" : ""}</label>
+                        <SelectField
+                          value={mapping[field.key] || ""}
+                          onChange={(nextValue) => setMapping((current) => ({ ...current, [field.key]: nextValue }))}
+                          options={columnOptions}
+                          placeholder="Select column"
+                        />
                       </div>
-                    </div>
+                    ))}
                   </div>
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Metric Name Column *</label>
-                      <SelectField
-                        value={mapping.name || ""}
-                        onChange={(nextValue) => setMapping((current) => ({ ...current, name: nextValue }))}
-                        options={columnOptions}
-                        placeholder="Select column"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Date Column *</label>
-                      <SelectField
-                        value={mapping.date || ""}
-                        onChange={(nextValue) => setMapping((current) => ({ ...current, date: nextValue }))}
-                        options={columnOptions}
-                        placeholder="Select column"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Value Column *</label>
-                      <SelectField
-                        value={mapping.value || ""}
-                        onChange={(nextValue) => setMapping((current) => ({ ...current, value: nextValue }))}
-                        options={columnOptions}
-                        placeholder="Select column"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Source Column</label>
-                      <SelectField
-                        value={mapping.source || ""}
-                        onChange={(nextValue) => setMapping((current) => ({ ...current, source: nextValue }))}
-                        options={columnOptions}
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Link to Asset</label>
-                    <SelectField
-                      value={assetId}
-                      onChange={setAssetId}
-                      options={assetOptions}
-                      placeholder="No asset link"
-                    />
+                  <div className="form-section-divider">Performance and audience fields</div>
+                  <div className="form-row form-row-3">
+                    {MEDIA_METRIC_FIELDS.map((field) => (
+                      <div className="form-group" key={field.key}>
+                        <label className="form-label">{field.label}</label>
+                        <SelectField
+                          value={mapping[field.key] || ""}
+                          onChange={(nextValue) => setMapping((current) => ({ ...current, [field.key]: nextValue }))}
+                          options={columnOptions}
+                          placeholder="Skip field"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : null}
@@ -489,7 +580,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
                   <div className="workflow-panel-header">
                     <div>
                       <div className="workflow-panel-title">3. Preview</div>
-                      <div className="workflow-panel-text">Check the detected rows before importing.</div>
+                      <div className="workflow-panel-text">Check the first rows before importing them.</div>
                     </div>
                   </div>
 
@@ -537,7 +628,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
               {parsed ? (
                 <div className="workflow-actions">
                   <button className="btn btn-success" disabled={busy || !mappingReady}>
-                    {busy ? "Importing..." : `Import ${parsed.rows.length} Rows`}
+                    {busy ? "Importing..." : `Import ${parsed.rows.length} Video Rows`}
                   </button>
                 </div>
               ) : null}
@@ -548,19 +639,33 @@ function BulkUpload({ assets, onSubmit, onLog }) {
 
       <div className="stack">
         <WorkflowAside
-          title="Ready to import"
+          title="Expected spreadsheet shape"
           items={[
-            { label: "Source file", value: parsed ? (fileName || "Attached") : "Pending", tone: parsed ? "good" : "muted" },
-            { label: "Required mapping", value: mappingReady ? "Ready" : "Pending", tone: mappingReady ? "good" : "muted" },
-            { label: "Destination asset", value: selectedAsset?.name || "Not linked", tone: selectedAsset ? "good" : "muted" }
+            { label: "Context columns", value: "Video, title, pub date, snapshot date, platform", tone: "good" },
+            { label: "Performance fields", value: "Views through followers", tone: "good" },
+            { label: "Audience fields", value: "Gender and age percentages", tone: "good" }
           ]}
-          note={
-            parsed
-              ? `${parsed.rows.length} rows detected${parsed.sheetName ? ` from ${parsed.sheetName}` : ""}.`
-              : "Upload a file to unlock mapping and preview."
-          }
+          note="Choose the asset first, then map the spreadsheet columns. Each row becomes a per-video submission."
         />
       </div>
+    </div>
+  );
+}
+
+function MetricInput({ field, value, onChange }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{field.label}</label>
+      <input
+        className="form-input"
+        type="number"
+        min="0"
+        max={field.kind === "percent" ? "100" : undefined}
+        step="any"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={field.kind === "percent" ? "0-100" : "Enter value"}
+      />
     </div>
   );
 }
@@ -606,4 +711,12 @@ function SummaryTile({ label, value, text }) {
       <div className="summary-tile-text">{text}</div>
     </div>
   );
+}
+
+function hasMetricValues(form, fields) {
+  return fields.some((field) => form[field.key] !== "");
+}
+
+function countMetricValues(form, fields) {
+  return `${fields.filter((field) => form[field.key] !== "").length} filled`;
 }

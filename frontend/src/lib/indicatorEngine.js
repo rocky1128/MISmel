@@ -23,8 +23,10 @@ export const DOMAIN_MAP = Object.fromEntries(MEL_DOMAINS.map((d) => [d.key, d]))
 // Maps data_source → available fields for numerator/denominator selection
 export const DATA_SOURCE_FIELDS = {
   episodes: [
-    "views", "unique_reach", "likes", "comments", "shares", "clicks",
-    "watch_time_minutes", "engagement_rate", "completion_rate", "new_followers",
+    "views", "unique_reach", "likes", "comments", "shares", "shares_saves", "clicks",
+    "watch_time_minutes", "watch_time_min", "engagement_rate", "completion_rate", "cta_clicks", "new_followers",
+    "male_pct", "female_pct",
+    "age_15_17_pct", "age_18_24_pct", "age_25_30_pct", "age_31_35_pct", "age_36_plus_pct",
     "_count"
   ],
   participants: [

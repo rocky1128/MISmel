@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import useMELData from "./useMELData";
-import { buildAssetInsights, buildTimeSeries, compactNumber, getSeriesTrend, slugify, summarizeMetrics } from "../lib/melAnalytics";
+import { buildAssetInsights, buildWeeklyTimeSeries, compactNumber, getSeriesTrend, slugify } from "../lib/melAnalytics";
+import { buildLatestMediaRecords, buildMediaPlatformRows, extractMediaRecords, summarizeMediaRecords } from "../lib/mediaMetrics";
 
 export default function useAssetData(assetSlug) {
   const mel = useMELData();
@@ -20,60 +21,72 @@ export default function useAssetData(assetSlug) {
     [asset, mel.indicators]
   );
 
+  const mediaRecords = useMemo(
+    () => extractMediaRecords(assetMetrics),
+    [assetMetrics]
+  );
+
+  const mediaSummary = useMemo(
+    () => summarizeMediaRecords(mediaRecords),
+    [mediaRecords]
+  );
+
+  const latestMediaRecords = useMemo(
+    () => buildLatestMediaRecords(mediaRecords),
+    [mediaRecords]
+  );
+
   const platformRows = useMemo(() => {
-    const platforms = new Map();
-    for (const metric of assetMetrics) {
-      const key = metric.source || "manual";
-      const current = platforms.get(key) || { source: key, views: 0, reach: 0, engagement: 0, followers: 0 };
-      if (metric.name === "views") current.views += metric.value;
-      if (metric.name === "unique_reach") current.reach += metric.value;
-      if (metric.name === "engagement_rate") current.engagement += metric.value;
-      if (metric.name === "new_followers") current.followers += metric.value;
-      platforms.set(key, current);
-    }
-    return [...platforms.values()];
-  }, [assetMetrics]);
+    return buildMediaPlatformRows(latestMediaRecords);
+  }, [latestMediaRecords]);
 
   const trendSeries = useMemo(
-    () => buildTimeSeries(assetMetrics, ["views", "unique_reach", "new_followers", "engagement_rate"]),
+    () => buildWeeklyTimeSeries(assetMetrics, ["views", "unique_reach", "new_followers", "engagement_rate", "watch_time_min", "cta_clicks"]),
     [assetMetrics]
   );
 
   const kpis = useMemo(
     () => [
       {
+        label: "Videos Tracked",
+        value: compactNumber(mediaSummary.trackedVideos),
+        trend: mediaRecords.length ? mediaRecords.length : 0
+      },
+      {
         label: "Views",
-        value: compactNumber(summarizeMetrics(assetMetrics, ["views"])),
+        value: compactNumber(mediaSummary.totals.views),
         trend: getSeriesTrend(trendSeries, "views")
       },
       {
         label: "Reach",
-        value: compactNumber(summarizeMetrics(assetMetrics, ["unique_reach"])),
+        value: compactNumber(mediaSummary.totals.uniqueReach),
         trend: getSeriesTrend(trendSeries, "unique_reach")
       },
       {
-        label: "Followers",
-        value: compactNumber(summarizeMetrics(assetMetrics, ["new_followers"])),
-        trend: getSeriesTrend(trendSeries, "new_followers")
+        label: "Watch Time",
+        value: compactNumber(mediaSummary.totals.watchTime),
+        trend: getSeriesTrend(trendSeries, "watch_time_min")
       },
       {
-        label: "Indicator Score",
-        value: `${Math.round(assetIndicators.reduce((sum, i) => sum + i.performanceScore, 0) / Math.max(assetIndicators.length, 1))}%`,
-        trend: Math.round(assetIndicators.filter((i) => i.performanceScore >= 80).length - assetIndicators.filter((i) => i.performanceScore < 60).length)
+        label: "New Followers",
+        value: compactNumber(mediaSummary.totals.newFollowers),
+        trend: getSeriesTrend(trendSeries, "new_followers")
       }
     ],
-    [assetIndicators, assetMetrics, trendSeries]
+    [mediaRecords.length, mediaSummary, trendSeries]
   );
 
   const insights = useMemo(
-    () => (asset ? buildAssetInsights(asset, assetMetrics, assetIndicators) : []),
-    [asset, assetIndicators, assetMetrics]
+    () => (asset ? buildAssetInsights(asset, assetMetrics, assetIndicators, mediaSummary) : []),
+    [asset, assetIndicators, assetMetrics, mediaSummary]
   );
 
   return {
     ...mel,
     asset,
     assetMetrics,
+    mediaRecords,
+    mediaSummary,
     assetIndicators,
     platformRows,
     trendSeries,

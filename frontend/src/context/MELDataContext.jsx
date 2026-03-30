@@ -204,7 +204,7 @@ export function MELDataProvider({ children }) {
       setMetrics((metRes.data ?? []).map((m) => ({
         id: m.id, name: m.name, source: m.source, assetId: m.asset_id,
         assetName: m.asset_id ? assetsMap.get(m.asset_id) : null,
-        date: m.date, value: Number(m.value), metadata: m.metadata
+        date: m.date, value: Number(m.value), metadata: m.metadata, contentKey: m.content_key ?? m.metadata?.video_id ?? null
       })));
 
       setSubmissions((subRes.data ?? []).map((s) => ({
@@ -311,10 +311,16 @@ export function MELDataProvider({ children }) {
   }
 
   async function submitBulkMetrics(data) {
-    const { error: insertError } = await supabase.from("metrics").insert(data);
+    const { error: insertError } = await supabase
+      .from("metrics")
+      .upsert(data, { onConflict: "name,source,asset_id,date,content_key" });
     if (insertError) return { success: false, error: insertError };
     await loadAll();
     return { success: true };
+  }
+
+  async function submitMediaMetrics(data) {
+    return submitBulkMetrics(data);
   }
 
   async function createActivity(payload) {
@@ -555,6 +561,7 @@ export function MELDataProvider({ children }) {
       dataSources, computedResults, computedAssetScores, signalBlocks, domainSummary,
       // Original mutations
       submitIndicatorValue, submitBulkMetrics, createActivity, submitCheckin,
+      submitMediaMetrics,
       addEvidence, addSubmissionLog, createDepartment, createReportingPeriod, updateUserRole,
       // NEW mutations
       createGovernedIndicator, submitIndicatorForApproval, approveIndicator,

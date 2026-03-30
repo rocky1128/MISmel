@@ -10,6 +10,8 @@ import InsightCard from "../components/ui/InsightCard";
 import SelectField from "../components/ui/SelectField";
 import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
 import { MEL_DOMAINS } from "../lib/indicatorEngine";
+import { buildLatestMediaRecords, buildMediaPlatformRows, summarizeMediaRecords } from "../lib/mediaMetrics";
+import { buildWeeklyTimeSeries, compactNumber, getSeriesTrend } from "../lib/melAnalytics";
 
 const TABS = ["Overview", "Engagement", "Learning", "Outcomes", "Content", "Trends"];
 
@@ -17,10 +19,11 @@ export default function AssetPerformance() {
   const { assetSlug = "virtual-university" } = useParams();
   const navigate = useNavigate();
   const {
-    loading, error, asset, assets, assetIndicators, platformRows, trendSeries, assetKpis, assetInsights,
+    loading, error, asset, assets, assetMetrics, assetIndicators, mediaRecords, mediaSummary, platformRows, trendSeries, assetInsights,
     surveyResponses, followUpData, computedAssetScores, computedResults
   } = useAssetData(assetSlug);
   const [tab, setTab] = useState("Overview");
+  const [selectedVideoKey, setSelectedVideoKey] = useState("");
 
   const relatedIndicators = useMemo(
     () => [...assetIndicators].sort((l, r) => r.performanceScore - l.performanceScore),
@@ -74,6 +77,61 @@ export default function AssetPerformance() {
   }, [asset, computedAssetScores]);
   const hasEngagementMetrics = platformRows.length > 0;
   const hasTrendData = trendSeries.length > 0;
+  const hasMediaRecords = mediaRecords.length > 0;
+  const filteredMediaRecords = useMemo(
+    () => (selectedVideoKey ? mediaRecords.filter((record) => record.contentKey === selectedVideoKey) : mediaRecords),
+    [mediaRecords, selectedVideoKey]
+  );
+  const filteredLatestMediaRecords = useMemo(
+    () => buildLatestMediaRecords(filteredMediaRecords),
+    [filteredMediaRecords]
+  );
+  const filteredMediaSummary = useMemo(
+    () => summarizeMediaRecords(filteredMediaRecords),
+    [filteredMediaRecords]
+  );
+  const filteredPlatformRows = useMemo(
+    () => buildMediaPlatformRows(filteredLatestMediaRecords),
+    [filteredLatestMediaRecords]
+  );
+  const filteredMetrics = useMemo(
+    () => (selectedVideoKey ? assetMetrics.filter((metric) => metric.contentKey === selectedVideoKey) : assetMetrics),
+    [assetMetrics, selectedVideoKey]
+  );
+  const filteredTrendSeries = useMemo(
+    () => buildWeeklyTimeSeries(filteredMetrics, ["views", "unique_reach", "new_followers", "engagement_rate", "watch_time_min", "cta_clicks"]),
+    [filteredMetrics]
+  );
+  const displayKpis = useMemo(
+    () => [
+      {
+        label: selectedVideoKey ? "Snapshots" : "Videos Tracked",
+        value: compactNumber(selectedVideoKey ? filteredMediaRecords.length : filteredMediaSummary.trackedVideos),
+        trend: filteredMediaRecords.length
+      },
+      {
+        label: "Views",
+        value: compactNumber(filteredMediaSummary.totals.views),
+        trend: getSeriesTrend(filteredTrendSeries, "views")
+      },
+      {
+        label: "Reach",
+        value: compactNumber(filteredMediaSummary.totals.uniqueReach),
+        trend: getSeriesTrend(filteredTrendSeries, "unique_reach")
+      },
+      {
+        label: "Watch Time",
+        value: compactNumber(filteredMediaSummary.totals.watchTime),
+        trend: getSeriesTrend(filteredTrendSeries, "watch_time_min")
+      },
+      {
+        label: "New Followers",
+        value: compactNumber(filteredMediaSummary.totals.newFollowers),
+        trend: getSeriesTrend(filteredTrendSeries, "new_followers")
+      }
+    ],
+    [filteredMediaRecords.length, filteredMediaSummary, filteredTrendSeries, selectedVideoKey]
+  );
 
   // Engine results for this asset
   const assetEngineResults = useMemo(() => {
@@ -90,6 +148,25 @@ export default function AssetPerformance() {
   const assetOptions = useMemo(
     () => Object.entries(assetLabels).map(([slug, label]) => ({ value: slug, label })),
     [assetLabels]
+  );
+  const videoOptions = useMemo(
+    () => {
+      const uniqueRecords = new Map();
+      for (const record of mediaRecords) {
+        if (!uniqueRecords.has(record.contentKey)) {
+          uniqueRecords.set(record.contentKey, record);
+        }
+      }
+
+      return [
+        { value: "", label: "All videos" },
+        ...[...uniqueRecords.values()].map((record) => ({
+          value: record.contentKey,
+          label: record.videoId ? `${record.videoId} - ${record.title || record.platform}` : record.title || record.platform || "Video"
+        }))
+      ];
+    },
+    [mediaRecords]
   );
 
   if (loading) {
@@ -121,13 +198,25 @@ export default function AssetPerformance() {
                 placeholder="Choose asset"
               />
             </div>
+            {hasMediaRecords ? (
+              <div className="page-select-wrap">
+                <span className="page-select-label">Video</span>
+                <SelectField
+                  variant="page"
+                  className="page-select"
+                  value={selectedVideoKey}
+                  onChange={setSelectedVideoKey}
+                  options={videoOptions}
+                />
+              </div>
+            ) : null}
           </div>
         }
       />
 
       {/* KPI ROW */}
       <div className="kpi-grid">
-        {assetKpis.map((kpi) => (
+        {displayKpis.map((kpi) => (
           <KPICard key={kpi.label} label={kpi.label} value={kpi.value} trend={kpi.trend}
             tone={kpi.trend < -5 ? "critical" : kpi.trend < 5 ? "warning" : "good"} />
         ))}
@@ -173,25 +262,37 @@ export default function AssetPerformance() {
               ))}
             </div>
           </SectionContainer>
-          <ChartCard title="Indicator Snapshot" description="Linked indicators by performance."
-            footer="Use low-scoring indicators to prioritize interventions.">
-            {relatedIndicators.length ? (
+          <ChartCard title="Tracked Videos" description="Recent video records saved for this asset."
+            footer="Each row represents one saved video record for this asset.">
+            {hasMediaRecords ? (
               <table className="list-table">
                 <tbody>
-                  {relatedIndicators.slice(0, 6).map((i) => (
-                    <tr key={i.id}>
-                      <td><div style={{ fontWeight: 700 }}>{i.name}</div><div className="table-detail">{i.pillar}</div></td>
-                      <td style={{ textAlign: "right", fontWeight: 700 }}>{i.performanceScore}%</td>
+                  {filteredLatestMediaRecords.slice(0, 6).map((record) => (
+                    <tr key={record.key}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{record.videoId || "Video record"}</div>
+                        <div className="table-detail">{record.title || "Untitled video"}</div>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: 700 }}>{formatDate(record.snapshotDate || record.date)}</div>
+                        <div className="table-detail">{record.platform || "--"}</div>
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {compactMetric(record.values.views)}
+                      </td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {compactMetric(record.values.unique_reach)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
               <EmptyPanel
-                title="No linked indicators yet"
-                text="Connect reporting indicators to this asset to see a ranked performance snapshot."
+                title="No video records yet"
+                text="Submit media rows for this asset to see tracked content here."
                 actions={[
-                  { label: "Manage Indicators", to: "/indicators" }
+                  { label: "Collect Data", to: "/data-collection" }
                 ]}
               />
             )}
@@ -203,10 +304,10 @@ export default function AssetPerformance() {
       {tab === "Engagement" && (
         <div className="two-column-grid">
           <ChartCard title="Channel Comparison" description="Reach and views across platforms.">
-            {hasEngagementMetrics ? (
+            {filteredPlatformRows.length ? (
               <div style={{ width: "100%", height: 320 }}>
                 <ResponsiveContainer>
-                  <BarChart data={platformRows}>
+                  <BarChart data={filteredPlatformRows}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                     <XAxis dataKey="source" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
@@ -226,15 +327,26 @@ export default function AssetPerformance() {
               />
             )}
           </ChartCard>
-          <SectionContainer title="Engagement Detail" description="Channel performance breakdown.">
-            {hasEngagementMetrics ? (
+          <SectionContainer title="Channel Detail" description="Break down saved video performance by platform.">
+            {filteredPlatformRows.length ? (
               <table className="list-table">
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Videos</th>
+                    <th>Avg Engagement</th>
+                    <th>Avg Completion</th>
+                    <th>New Followers</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {platformRows.map((row) => (
+                  {filteredPlatformRows.map((row) => (
                     <tr key={row.source}>
                       <td><div style={{ fontWeight: 700 }}>{row.source}</div></td>
-                      <td style={{ textAlign: "right" }}>{Math.round(row.engagement * 100)}%</td>
-                      <td style={{ textAlign: "right" }}>{row.followers.toLocaleString()} followers</td>
+                      <td style={{ textAlign: "right" }}>{row.videos}</td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(row.engagement)}</td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(row.completion)}</td>
+                      <td style={{ textAlign: "right" }}>{compactMetric(row.followers)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -395,58 +507,79 @@ export default function AssetPerformance() {
 
       {/* CONTENT PERFORMANCE (NEW) */}
       {tab === "Content" && (
-        <SectionContainer title="Content Performance" description="Top and bottom episodes by engagement and reach.">
-          {assetEngineResults.length > 0 ? (
-            <div className="card">
-              <div className="card-body flush">
-                <div className="table-container">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Indicator</th>
-                        <th>Domain</th>
-                        <th>Value</th>
-                        <th>Target</th>
-                        <th>Performance</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assetEngineResults.map((r) => (
-                        <tr key={r.indicator_id}>
-                          <td style={{ fontWeight: 600 }}>{r.indicator_name}</td>
-                          <td>
-                            <span className="badge badge-purple">
-                              {MEL_DOMAINS.find((d) => d.key === r.domain)?.label || r.domain}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: 700 }}>{r.value ?? "--"}</td>
-                          <td>{r.target}</td>
-                          <td>
-                            <div className="dashboard-value-inline">
-                              <div className="progress-bar" style={{ width: 72 }}>
-                                <div className={`progress-fill ${r.status}`} style={{ width: `${Math.min(r.performance || 0, 100)}%` }} />
-                              </div>
-                              <span style={{ fontSize: 12, fontWeight: 700 }}>{r.performance ?? "--"}%</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`badge badge-${r.status === "good" ? "green" : r.status === "warning" ? "amber" : "red"}`}>
-                              <span className="badge-dot" />
-                              {r.status === "good" ? "On Track" : r.status === "warning" ? "Warning" : "Critical"}
-                            </span>
-                          </td>
+        <SectionContainer title="Tracked Content" description="Video-level performance and audience details for this asset.">
+          {filteredLatestMediaRecords.length ? (
+            <>
+              <div className="summary-strip" style={{ marginBottom: 16 }}>
+                <SummaryTile label="Videos tracked" value={selectedVideoKey ? filteredLatestMediaRecords.length : filteredMediaSummary.trackedVideos} />
+                <SummaryTile label="Avg completion" value={formatPercent(filteredMediaSummary.averages.completionRate)} />
+                <SummaryTile label="Avg engagement" value={formatPercent(filteredMediaSummary.averages.engagementRate)} />
+                <SummaryTile label="CTA clicks" value={compactMetric(filteredMediaSummary.totals.ctaClicks)} />
+              </div>
+
+              <div className="card">
+                <div className="card-body flush">
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Video</th>
+                          <th>Snapshot</th>
+                          <th>Platform</th>
+                          <th>Views</th>
+                          <th>Reach</th>
+                          <th>Watch Time</th>
+                          <th>Completion</th>
+                          <th>Engagement</th>
+                          <th>Followers</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {filteredLatestMediaRecords.map((record) => (
+                          <tr key={record.key}>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{record.videoId || "--"}</div>
+                              <div className="table-detail">{record.title || "Untitled video"}</div>
+                            </td>
+                            <td>{formatDate(record.snapshotDate || record.date)}</td>
+                            <td>{record.platform || "--"}</td>
+                            <td style={{ fontWeight: 700 }}>{compactMetric(record.values.views)}</td>
+                            <td>{compactMetric(record.values.unique_reach)}</td>
+                            <td>{compactMetric(record.values.watch_time_min)}</td>
+                            <td>{formatPercent(record.values.completion_rate)}</td>
+                            <td>{formatPercent(record.values.engagement_rate)}</td>
+                            <td>{compactMetric(record.values.new_followers)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div className="card">
+                <div className="card-header">
+                  <div className="section-copy">
+                    <div className="section-title">Audience breakdown</div>
+                    <div className="section-text">Average audience mix from the submitted video rows.</div>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <div className="summary-strip">
+                    <SummaryTile label="Male" value={formatPercent(filteredMediaSummary.averages.malePct)} />
+                    <SummaryTile label="Female" value={formatPercent(filteredMediaSummary.averages.femalePct)} />
+                    <SummaryTile label="18-24" value={formatPercent(filteredMediaSummary.averages.age18to24)} />
+                    <SummaryTile label="25-30" value={formatPercent(filteredMediaSummary.averages.age25to30)} />
+                    <SummaryTile label="31-35" value={formatPercent(filteredMediaSummary.averages.age31to35)} />
+                    <SummaryTile label="36+" value={formatPercent(filteredMediaSummary.averages.age36Plus)} />
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="card">
-              <EmptyPanel title="No engine results for this asset"
-                text="Create governed indicators linked to this asset to see content performance from the indicator engine." />
+              <EmptyPanel title="No tracked content yet"
+                text="Submit manual or bulk media rows for this asset to see video-level performance and audience details." />
             </div>
           )}
         </SectionContainer>
@@ -456,19 +589,20 @@ export default function AssetPerformance() {
       {tab === "Trends" && (
         <ChartCard
           title="Trend Lines"
-          description="Time-series movement across views, reach, followers, and engagement."
-          footer="Trend direction matters more than raw spikes."
+          description="Weekly movement across views, reach, followers, and engagement."
+          footer="Each point represents the reporting week of the submitted snapshot."
         >
-          {hasTrendData ? (
+          {filteredTrendSeries.length ? (
             <div style={{ width: "100%", height: 360 }}>
               <ResponsiveContainer>
-                <LineChart data={trendSeries}>
+                <LineChart data={filteredTrendSeries}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Line type="monotone" dataKey="views" stroke="var(--purple-500)" strokeWidth={2} />
                   <Line type="monotone" dataKey="unique_reach" stroke="var(--green-500)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="engagement_rate" stroke="var(--amber-500)" strokeWidth={2} />
                   <Line type="monotone" dataKey="new_followers" stroke="#0f766e" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
@@ -476,7 +610,7 @@ export default function AssetPerformance() {
           ) : (
             <EmptyPanel
               title="No trend history yet"
-              text="Charts will appear here once the asset has time-based metric entries."
+              text="Charts will appear here once the asset has time-based media snapshots."
               actions={[
                 { label: "Collect Data", to: "/data-collection" }
               ]}
@@ -486,4 +620,45 @@ export default function AssetPerformance() {
       )}
     </div>
   );
+}
+
+function SummaryTile({ label, value }) {
+  return (
+    <div className="summary-tile">
+      <div className="summary-tile-label">{label}</div>
+      <div className="summary-tile-value">{value}</div>
+    </div>
+  );
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "--";
+  }
+
+  return `${Math.round(Number(value) * 100)}%`;
+}
+
+function compactMetric(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "--";
+  }
+
+  return new Intl.NumberFormat("en", {
+    notation: Number(value) >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: 1
+  }).format(Number(value));
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "--";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed);
 }
