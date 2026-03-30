@@ -4,6 +4,7 @@ import useMELData from "../hooks/useMELData";
 import PageHeader from "../components/layout/PageHeader";
 import SectionContainer from "../components/ui/SectionContainer";
 import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
+import SelectField from "../components/ui/SelectField";
 
 const SURVEY_MEASURES = [
   { key: "confidence_score", label: "Confidence", max: 10 },
@@ -66,6 +67,11 @@ export default function SurveyModule() {
       byAsset: groupByAsset(surveyResponses, assets)
     };
   }, [surveyResponses, assets]);
+  const surveyTypeOptions = [
+    { value: "pre", label: "Pre-Assessment" },
+    { value: "post", label: "Post-Assessment" }
+  ];
+  const assetOptions = assets.map((asset) => ({ value: asset.id, label: asset.name }));
 
   if (loading) {
     return (
@@ -276,28 +282,22 @@ export default function SurveyModule() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Survey Type</label>
-                    <select
-                      className="form-select"
+                    <SelectField
                       value={formData.survey_type}
-                      onChange={(e) => setFormData((c) => ({ ...c, survey_type: e.target.value }))}
+                      onChange={(nextValue) => setFormData((c) => ({ ...c, survey_type: nextValue }))}
+                      options={surveyTypeOptions}
                       required
-                    >
-                      <option value="pre">Pre-Assessment</option>
-                      <option value="post">Post-Assessment</option>
-                    </select>
+                      name="survey_type"
+                    />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Asset / Program</label>
-                    <select
-                      className="form-select"
+                    <SelectField
                       value={formData.asset_id}
-                      onChange={(e) => setFormData((c) => ({ ...c, asset_id: e.target.value }))}
-                    >
-                      <option value="">Select asset (optional)</option>
-                      {assets.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
+                      onChange={(nextValue) => setFormData((c) => ({ ...c, asset_id: nextValue }))}
+                      options={assetOptions}
+                      placeholder="Select asset (optional)"
+                    />
                   </div>
                 </div>
                 <div className="form-group">

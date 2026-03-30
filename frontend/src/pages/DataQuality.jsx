@@ -19,8 +19,8 @@ export default function DataQuality() {
   if (loading) {
     return (
       <PageLoading
-        title="Loading data quality"
-        description="Reviewing completeness, verification, and data coverage across all sources."
+        title="Loading checks"
+        description="Reviewing data coverage and recent issues."
       />
     );
   }
@@ -28,8 +28,8 @@ export default function DataQuality() {
   if (error) {
     return (
       <PageError
-        title="Data quality view could not load"
-        description="This page depends on evidence, submissions, and multi-source data completeness."
+        title="Checks could not load"
+        description="This page depends on evidence, submissions, and source data."
         message={error}
       />
     );
@@ -95,9 +95,9 @@ export default function DataQuality() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="MEL Operations"
-        title="Data Quality & Validation"
-        description="Multi-source data completeness, indicator coverage, and validation status across the MEL framework."
+        eyebrow="Checks"
+        title="Data checks"
+        description="Review coverage, missing values, and recent verification work."
         meta={
           <div className="badge badge-purple">
             <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
@@ -107,16 +107,16 @@ export default function DataQuality() {
       />
 
       <div className="summary-strip">
-        <SummaryTile label="Missing Actuals" value={missingActuals.length} text="Legacy indicators without values" />
-        <SummaryTile label="Low Coverage" value={lowCoverage.length} text="Governed indicators <50% data" />
-        <SummaryTile label="Pending Evidence" value={pendingEvidence.length} text="Awaiting verification" />
-        <SummaryTile label="Active Sources" value={`${activeSources}/4`} text="Data pipelines with data" />
+        <SummaryTile label="Missing values" value={missingActuals.length} text="Legacy indicators without results" />
+        <SummaryTile label="Low coverage" value={lowCoverage.length} text="Structured indicators below 50%" />
+        <SummaryTile label="Pending evidence" value={pendingEvidence.length} text="Still waiting for review" />
+        <SummaryTile label="Active sources" value={`${activeSources}/4`} text="Sources currently sending data" />
       </div>
 
       {/* DATA SOURCE COVERAGE */}
       <SectionContainer
-        title="Data Source Coverage"
-        description="Status of each data pipeline feeding the indicator engine."
+        title="Source coverage"
+        description="Status of each data source feeding this workspace."
       >
         <div className="card">
           <div className="card-body flush">
@@ -163,8 +163,8 @@ export default function DataQuality() {
       {/* DOMAIN COVERAGE */}
       {govActive.length > 0 && (
         <SectionContainer
-          title="Domain Data Completeness"
-          description="How much data is available for each MEL domain's governed indicators."
+          title="Domain coverage"
+          description="How much usable data each domain currently has."
         >
           <div className="card">
             <div className="card-body flush">
@@ -214,8 +214,8 @@ export default function DataQuality() {
 
       {/* QUALITY ALERTS */}
       <SectionContainer
-        title="Quality Alerts"
-        description="The highest-value data issues to resolve before leadership reporting."
+        title="Issues to fix"
+        description="The main data issues worth resolving first."
       >
         <div className="alert-grid">
           {govWithoutTarget.slice(0, 2).map((i) => (
@@ -251,14 +251,14 @@ export default function DataQuality() {
             />
           ))}
           {!govWithoutTarget.length && !govNoData.length && !missingActuals.length && !pendingEvidence.length && (
-            <div className="empty-alert">No critical quality issues. All data pipelines are within expected parameters.</div>
+            <div className="empty-alert">No urgent data issues right now.</div>
           )}
         </div>
       </SectionContainer>
 
       {/* EVIDENCE & SUBMISSIONS */}
       <div className="two-column-grid">
-        <SectionContainer title="Recent Evidence" description="Latest evidence items and verification state.">
+        <SectionContainer title="Recent evidence" description="Latest evidence items and their review state.">
           {evidence.length ? (
             <>
               <div className="toolbar toolbar-compact" style={{ marginBottom: 14 }}>
@@ -268,7 +268,7 @@ export default function DataQuality() {
                     className="search-input"
                     value={evidenceQuery}
                     onChange={(e) => setEvidenceQuery(e.target.value)}
-                    placeholder="Search evidence, owner, link..."
+                    placeholder="Search evidence..."
                   />
                 </div>
                 <div className="toolbar-note">{filteredEvidence.length} items in view</div>
@@ -297,13 +297,13 @@ export default function DataQuality() {
               title="No evidence yet"
               text="Evidence will surface here as soon as uploads begin."
               actions={[
-                { label: "Collect Data", to: "/data-collection" }
+                { label: "Data Entry", to: "/data-collection" }
               ]}
             />
           )}
         </SectionContainer>
 
-        <SectionContainer title="Recent Submissions" description="Latest data submission activity.">
+        <SectionContainer title="Recent submissions" description="Latest data submission activity.">
           {submissions.length ? (
             <>
               <div className="toolbar toolbar-compact" style={{ marginBottom: 14 }}>
@@ -313,7 +313,7 @@ export default function DataQuality() {
                     className="search-input"
                     value={submissionQuery}
                     onChange={(e) => setSubmissionQuery(e.target.value)}
-                    placeholder="Search user, entity, action..."
+                    placeholder="Search submissions..."
                   />
                 </div>
                 <div className="toolbar-note">{filteredSubmissions.length} items in view</div>
@@ -342,7 +342,7 @@ export default function DataQuality() {
               title="No submissions yet"
               text="Submission records will appear once data starts flowing."
               actions={[
-                { label: "Collect Data", to: "/data-collection" }
+                { label: "Data Entry", to: "/data-collection" }
               ]}
             />
           )}

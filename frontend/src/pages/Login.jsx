@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import {
-  BarChart3, Shield, Database, FileCheck, AlertTriangle
-} from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export default function Login() {
   const { signIn, signUp, isConfigured } = useAuth();
@@ -44,46 +42,12 @@ export default function Login() {
       <div className="auth-hero">
         <div className="auth-hero-content">
           <div className="auth-hero-lockup">
-            <div className="auth-hero-kicker">Springboard Road Show Foundation</div>
             <div className="auth-hero-logo-panel">
               <img src="/springboard-logo.png" alt="Springboard Road Show Foundation" />
             </div>
-          </div>
-
-          <h1 className="auth-hero-title">
-            Monitoring, Evaluation & Learning MIS
-          </h1>
-          <p className="auth-hero-text">
-            A comprehensive management information system for institutional MEL tracking,
-            asset performance monitoring, media analytics, and evidence-based decision making.
-          </p>
-
-          <div className="auth-hero-features">
-            <div className="auth-hero-feature">
-              <div className="auth-hero-feature-icon"><BarChart3 size={16} /></div>
-              Performance dashboards with real-time KPI tracking
-            </div>
-            <div className="auth-hero-feature">
-              <div className="auth-hero-feature-icon"><Database size={16} /></div>
-              Multi-channel data ingestion (manual, CSV, API)
-            </div>
-            <div className="auth-hero-feature">
-              <div className="auth-hero-feature-icon"><FileCheck size={16} /></div>
-              Evidence library with verification workflows
-            </div>
-            <div className="auth-hero-feature">
-              <div className="auth-hero-feature-icon"><Shield size={16} /></div>
-              Role-based access control and audit trails
-            </div>
-          </div>
-
-          <div className="auth-hero-media">
-            <img
-              src="/springboard-community.jpg"
-              alt="Springboard Road Show Foundation community event"
-            />
-            <div className="auth-hero-media-copy">
-              Built for decision-making grounded in community impact, inclusive participation, and measurable learning.
+            <div>
+              <div className="auth-hero-kicker">Springboard Road Show Foundation</div>
+              <h1 className="auth-hero-title">Springboard MIS</h1>
             </div>
           </div>
         </div>
@@ -112,8 +76,8 @@ export default function Login() {
           </h2>
           <p className="auth-form-subtitle">
             {mode === "login"
-              ? "Sign in to access the MEL dashboard"
-              : "Set up your account to get started"}
+              ? "Sign in to continue"
+              : "Create an account to get started"}
           </p>
 
           {error && <div className="auth-error">{error}</div>}

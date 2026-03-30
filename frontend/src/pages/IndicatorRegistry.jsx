@@ -6,6 +6,7 @@ import { MEL_DOMAINS, DATA_SOURCE_FIELDS } from "../lib/indicatorEngine";
 import PageHeader from "../components/layout/PageHeader";
 import SectionContainer from "../components/ui/SectionContainer";
 import SearchSelect from "../components/ui/SearchSelect";
+import SelectField from "../components/ui/SelectField";
 import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
 
 const LIFECYCLE_LABELS = {
@@ -178,10 +179,10 @@ export default function IndicatorRegistry() {
   }), [indicators]);
 
   if (loading) {
-    return <PageLoading title="Loading indicator registry" description="Collecting indicator definitions, governance status, and computed results." />;
+    return <PageLoading title="Loading indicators" description="Collecting definitions, statuses, and current results." />;
   }
   if (error) {
-    return <PageError title="Indicator registry could not load" message={error} />;
+    return <PageError title="Indicators could not load" message={error} />;
   }
 
   const legacyIndicatorOptions = indicators.map((indicator) => ({
@@ -189,6 +190,50 @@ export default function IndicatorRegistry() {
     label: `${indicator.code} - ${indicator.name}`,
     searchText: `${indicator.code} ${indicator.name} ${indicator.owner || ""} ${indicator.assetName || ""}`
   }));
+  const domainOptions = MEL_DOMAINS.map((domain) => ({ value: domain.key, label: domain.label }));
+  const governedStatusOptions = Object.entries(LIFECYCLE_LABELS).map(([value, status]) => ({
+    value,
+    label: status.label
+  }));
+  const assetOptions = assets.map((asset) => ({ value: asset.id, label: asset.name }));
+  const governedSortOptions = [
+    { value: "name", label: "Sort: Name" },
+    { value: "performance-desc", label: "Sort: Performance" },
+    { value: "status", label: "Sort: Status" },
+    { value: "domain", label: "Sort: Domain" },
+    { value: "version-desc", label: "Sort: Version" }
+  ];
+  const dataSourceOptions = [
+    { value: "episodes", label: "Episodes (Media)" },
+    { value: "participants", label: "Participants" },
+    { value: "survey_responses", label: "Survey Responses" },
+    { value: "follow_up_data", label: "Follow-up Data" }
+  ];
+  const calculationTypeOptions = CALCULATION_TYPES.map((type) => ({
+    value: type.value,
+    label: type.label
+  }));
+  const aggregationOptions = AGGREGATION_LEVELS.map((level) => ({
+    value: level.value,
+    label: level.label
+  }));
+  const legacyCategoryOptions = [
+    { value: "institutional", label: "Institutional" },
+    { value: "asset", label: "Asset" },
+    { value: "process", label: "Process" },
+    { value: "outcome", label: "Outcome" }
+  ];
+  const legacyStatusOptions = [
+    { value: "green", label: "On Track" },
+    { value: "amber", label: "Needs Attention" },
+    { value: "red", label: "At Risk" }
+  ];
+  const legacySortOptions = [
+    { value: "performance-desc", label: "Sort: Performance high-low" },
+    { value: "performance-asc", label: "Sort: Performance low-high" },
+    { value: "name", label: "Sort: Name" },
+    { value: "owner", label: "Sort: Owner" }
+  ];
 
   // Available fields for selected data source
   const availableFields = formData.data_source ? (DATA_SOURCE_FIELDS[formData.data_source] || []) : [];
@@ -204,22 +249,22 @@ export default function IndicatorRegistry() {
   const createSteps = [
     {
       id: "basics",
-      title: "Define indicator",
-      text: basicsReady ? "Scope and source selected" : "Set the indicator name, domain, and source",
+      title: "Basics",
+      text: basicsReady ? "Name and source are set" : "Set the name, domain, and source",
       state: createStep === "basics" ? "current" : basicsReady ? "complete" : "pending",
       enabled: true
     },
     {
       id: "formula",
-      title: "Configure formula",
-      text: formulaReady ? "Calculation structure is ready" : "Choose calculation logic and required fields",
+      title: "Formula",
+      text: formulaReady ? "Calculation is ready" : "Choose the logic and fields",
       state: createStep === "formula" ? "current" : formulaReady ? "complete" : "pending",
       enabled: basicsReady
     },
     {
       id: "review",
-      title: "Score and review",
-      text: scoringReady ? "Draft can be created" : "Set the target and confirm the final definition",
+      title: "Review",
+      text: scoringReady ? "Draft can be created" : "Set the target and confirm the draft",
       state: createStep === "review" ? "current" : scoringReady ? "complete" : "pending",
       enabled: basicsReady && formulaReady
     }
@@ -255,7 +300,7 @@ export default function IndicatorRegistry() {
 
     const result = await createGovernedIndicator(payload);
     if (result.success) {
-      setFormMsg({ type: "success", text: "Indicator created as draft. Submit for approval when ready." });
+      setFormMsg({ type: "success", text: "Indicator saved as a draft. Submit it when you are ready." });
       setFormData({ ...EMPTY_FORM });
       setCreateStep("basics");
     } else {
@@ -311,9 +356,9 @@ export default function IndicatorRegistry() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="MEL Operations"
-        title="Indicator Registry"
-        description="Governed indicator definitions with structured formulas, approval workflows, and live computed results."
+        eyebrow="Setup"
+        title="Indicators"
+        description="Manage structured indicators, review status, and update older KPI records."
         meta={
           <div className="badge badge-purple">
             <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
@@ -324,10 +369,10 @@ export default function IndicatorRegistry() {
 
       <div className="tab-strip">
         <button className={`tab-pill ${tab === "governed" ? "active" : ""}`} onClick={() => setTab("governed")}>
-          Governed Indicators ({govSummary.total})
+          Structured ({govSummary.total})
         </button>
         <button className={`tab-pill ${tab === "legacy" ? "active" : ""}`} onClick={() => setTab("legacy")}>
-          Legacy Indicators ({legacySummary.total})
+          Legacy ({legacySummary.total})
         </button>
       </div>
 
@@ -335,9 +380,9 @@ export default function IndicatorRegistry() {
       {tab === "governed" && (
         <>
           <div className="summary-strip">
-            <SummaryTile label="Total" value={govSummary.total} text="All governed indicators" />
-            <SummaryTile label="Active" value={govSummary.active} text="Computing results" />
-            <SummaryTile label="Pending Approval" value={govSummary.pending} text="Awaiting MEL Head review" />
+            <SummaryTile label="Total" value={govSummary.total} text="All structured indicators" />
+            <SummaryTile label="Active" value={govSummary.active} text="Currently in use" />
+            <SummaryTile label="Pending" value={govSummary.pending} text="Waiting for review" />
             <SummaryTile label="Drafts" value={govSummary.draft} text="Not yet submitted" />
           </div>
 
@@ -348,31 +393,39 @@ export default function IndicatorRegistry() {
                 className="search-input"
                 value={governedSearch}
                 onChange={(e) => setGovernedSearch(e.target.value)}
-                placeholder="Search code, name, source..."
+                placeholder="Search indicators..."
               />
             </div>
-            <select className="filter-select" value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)}>
-              <option value="">All Domains</option>
-              {MEL_DOMAINS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-            </select>
-            <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="">All Statuses</option>
-              {Object.entries(LIFECYCLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-            <select className="filter-select" value={filterAsset} onChange={(e) => setFilterAsset(e.target.value)}>
-              <option value="">All Assets</option>
-              {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <select className="filter-select" value={governedSort} onChange={(e) => setGovernedSort(e.target.value)}>
-              <option value="name">Sort: Name</option>
-              <option value="performance-desc">Sort: Performance</option>
-              <option value="status">Sort: Status</option>
-              <option value="domain">Sort: Domain</option>
-              <option value="version-desc">Sort: Version</option>
-            </select>
+            <SelectField
+              variant="filter"
+              value={filterDomain}
+              onChange={setFilterDomain}
+              options={domainOptions}
+              placeholder="All Domains"
+            />
+            <SelectField
+              variant="filter"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={governedStatusOptions}
+              placeholder="All Statuses"
+            />
+            <SelectField
+              variant="filter"
+              value={filterAsset}
+              onChange={setFilterAsset}
+              options={assetOptions}
+              placeholder="All Assets"
+            />
+            <SelectField
+              variant="filter"
+              value={governedSort}
+              onChange={setGovernedSort}
+              options={governedSortOptions}
+            />
             <div className="toolbar-spacer" />
             <button className="btn btn-primary" onClick={openCreateFlow}>
-              <Plus size={14} /> Create Indicator
+              <Plus size={14} /> New Indicator
             </button>
           </div>
 
@@ -383,11 +436,10 @@ export default function IndicatorRegistry() {
                 <div className="form-panel">
                   <div className="form-panel-head">
                     <div className="section-copy">
-                      <div className="section-kicker">Governance</div>
-                      <div className="section-title">Create Governed Indicator</div>
+                      <div className="section-kicker">New</div>
+                      <div className="section-title">Create indicator</div>
                       <div className="section-text">
-                        Define the indicator in stages so the governance team can verify scope, formula, and scoring
-                        before the draft enters approval.
+                        Add the basics, set the formula, then review the target before saving the draft.
                       </div>
                     </div>
                   </div>
@@ -399,9 +451,9 @@ export default function IndicatorRegistry() {
                           <div className="workflow-panel">
                             <div className="workflow-panel-header">
                               <div>
-                                <div className="workflow-panel-title">Step 1. Define Indicator</div>
+                                <div className="workflow-panel-title">1. Basics</div>
                                 <div className="workflow-panel-text">
-                                  Capture the identity, scope, and source of the indicator before building the formula.
+                                  Add the main details and choose the source before building the formula.
                                 </div>
                               </div>
                             </div>
@@ -444,48 +496,41 @@ export default function IndicatorRegistry() {
                             <div className="form-row form-row-3">
                               <div className="form-group">
                                 <label className="form-label">Domain *</label>
-                                <select
-                                  className="form-select"
-                                  required
+                                <SelectField
                                   value={formData.domain}
-                                  onChange={(e) => setFormData((c) => ({ ...c, domain: e.target.value }))}
-                                >
-                                  <option value="">Select domain</option>
-                                  {MEL_DOMAINS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-                                </select>
+                                  onChange={(nextValue) => setFormData((c) => ({ ...c, domain: nextValue }))}
+                                  options={domainOptions}
+                                  placeholder="Select domain"
+                                  required
+                                  name="domain"
+                                />
                               </div>
                               <div className="form-group">
                                 <label className="form-label">Data Source *</label>
-                                <select
-                                  className="form-select"
-                                  required
+                                <SelectField
                                   value={formData.data_source}
-                                  onChange={(e) =>
+                                  onChange={(nextValue) =>
                                     setFormData((c) => ({
                                       ...c,
-                                      data_source: e.target.value,
+                                      data_source: nextValue,
                                       numerator_fields: [],
                                       denominator_fields: []
                                     }))
                                   }
-                                >
-                                  <option value="">Select source</option>
-                                  <option value="episodes">Episodes (Media)</option>
-                                  <option value="participants">Participants</option>
-                                  <option value="survey_responses">Survey Responses</option>
-                                  <option value="follow_up_data">Follow-up Data</option>
-                                </select>
+                                  options={dataSourceOptions}
+                                  placeholder="Select source"
+                                  required
+                                  name="data_source"
+                                />
                               </div>
                               <div className="form-group">
                                 <label className="form-label">Asset</label>
-                                <select
-                                  className="form-select"
+                                <SelectField
                                   value={formData.asset_id}
-                                  onChange={(e) => setFormData((c) => ({ ...c, asset_id: e.target.value }))}
-                                >
-                                  <option value="">All assets</option>
-                                  {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                </select>
+                                  onChange={(nextValue) => setFormData((c) => ({ ...c, asset_id: nextValue }))}
+                                  options={assetOptions}
+                                  placeholder="All assets"
+                                />
                               </div>
                             </div>
                           </div>
@@ -495,9 +540,9 @@ export default function IndicatorRegistry() {
                           <div className="workflow-panel">
                             <div className="workflow-panel-header">
                               <div>
-                                <div className="workflow-panel-title">Step 2. Configure Formula</div>
+                                <div className="workflow-panel-title">2. Formula</div>
                                 <div className="workflow-panel-text">
-                                  Define how the indicator should compute and which source fields should contribute.
+                                  Choose how the indicator is calculated and which fields it uses.
                                 </div>
                               </div>
                             </div>
@@ -505,25 +550,23 @@ export default function IndicatorRegistry() {
                             <div className="form-row form-row-3">
                               <div className="form-group">
                                 <label className="form-label">Calculation Type *</label>
-                                <select
-                                  className="form-select"
-                                  required
+                                <SelectField
                                   value={formData.calculation}
-                                  onChange={(e) => setFormData((c) => ({ ...c, calculation: e.target.value }))}
-                                >
-                                  {CALCULATION_TYPES.map((ct) => <option key={ct.value} value={ct.value}>{ct.label}</option>)}
-                                </select>
+                                  onChange={(nextValue) => setFormData((c) => ({ ...c, calculation: nextValue }))}
+                                  options={calculationTypeOptions}
+                                  required
+                                  name="calculation"
+                                />
                               </div>
                               <div className="form-group">
                                 <label className="form-label">Aggregation *</label>
-                                <select
-                                  className="form-select"
-                                  required
+                                <SelectField
                                   value={formData.aggregation}
-                                  onChange={(e) => setFormData((c) => ({ ...c, aggregation: e.target.value }))}
-                                >
-                                  {AGGREGATION_LEVELS.map((al) => <option key={al.value} value={al.value}>{al.label}</option>)}
-                                </select>
+                                  onChange={(nextValue) => setFormData((c) => ({ ...c, aggregation: nextValue }))}
+                                  options={aggregationOptions}
+                                  required
+                                  name="aggregation"
+                                />
                               </div>
                               <div className="form-group">
                                 <label className="form-label">Unit</label>
@@ -597,9 +640,9 @@ export default function IndicatorRegistry() {
                           <div className="workflow-panel">
                             <div className="workflow-panel-header">
                               <div>
-                                <div className="workflow-panel-title">Step 3. Score and Review</div>
+                                <div className="workflow-panel-title">3. Review</div>
                                 <div className="workflow-panel-text">
-                                  Confirm the scoring inputs and review the draft definition before creating it.
+                                  Set the target and confirm the draft before creating it.
                                 </div>
                               </div>
                             </div>
@@ -679,7 +722,7 @@ export default function IndicatorRegistry() {
                             </button>
                           ) : (
                             <button className="btn btn-primary" type="submit" disabled={saving || !scoringReady}>
-                              {saving ? "Creating..." : "Create as Draft"}
+                              {saving ? "Saving..." : "Save Draft"}
                             </button>
                           )}
 
@@ -691,13 +734,13 @@ export default function IndicatorRegistry() {
 
                       <div className="stack">
                         <RegistryWorkflowAside
-                          title="Draft Summary"
+                          title="Ready to create"
                           items={[
                             { label: "Basics", value: basicsReady ? "Ready" : "Pending", tone: basicsReady ? "good" : "muted" },
                             { label: "Formula", value: formulaReady ? "Ready" : "Pending", tone: formulaReady ? "good" : "muted" },
                             { label: "Scoring", value: scoringReady ? "Ready" : "Pending", tone: scoringReady ? "good" : "muted" }
                           ]}
-                          note="New indicators are created as drafts and still require MEL Head approval before activation."
+                          note="New indicators are saved as drafts and still need approval before they go live."
                         />
                       </div>
                     </div>
@@ -711,7 +754,7 @@ export default function IndicatorRegistry() {
           <div className="card">
             <div className="card-header">
               <div className="section-copy">
-                <div className="section-title">Governed Indicators</div>
+                <div className="section-title">Structured indicators</div>
                 <div className="section-text">{filteredGoverned.length} indicators in view</div>
               </div>
             </div>
@@ -814,8 +857,8 @@ export default function IndicatorRegistry() {
                   </table>
                 </div>
               ) : (
-                <EmptyPanel icon={Target} title="No governed indicators"
-                  text="Create structured indicators with formulas, targets, and domain mappings using the button above." />
+                <EmptyPanel icon={Target} title="No structured indicators"
+                  text="Create a new indicator to start tracking structured results here." />
               )}
             </div>
           </div>
@@ -826,10 +869,10 @@ export default function IndicatorRegistry() {
       {tab === "legacy" && (
         <>
           <div className="summary-strip">
-            <SummaryTile label="Total Indicators" value={legacySummary.total} text="All configured KPIs" />
-            <SummaryTile label="On Track" value={legacySummary.onTrack} text="Performance at or above 90%" />
-            <SummaryTile label="Attention" value={legacySummary.attention} text="Indicators in the warning band" />
-            <SummaryTile label="At Risk" value={legacySummary.atRisk} text="Indicators below the expected pace" />
+            <SummaryTile label="Total" value={legacySummary.total} text="All configured KPIs" />
+            <SummaryTile label="On track" value={legacySummary.onTrack} text="At or above 90%" />
+            <SummaryTile label="Watch" value={legacySummary.attention} text="In the warning band" />
+            <SummaryTile label="At risk" value={legacySummary.atRisk} text="Below expected pace" />
           </div>
 
           <div className="toolbar">
@@ -839,35 +882,39 @@ export default function IndicatorRegistry() {
                 className="search-input"
                 value={legacySearch}
                 onChange={(e) => setLegacySearch(e.target.value)}
-                placeholder="Search code, name, owner..."
+                placeholder="Search indicators..."
               />
             </div>
-            <select className="filter-select" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
-              <option value="">All Categories</option>
-              <option value="institutional">Institutional</option>
-              <option value="asset">Asset</option>
-              <option value="process">Process</option>
-              <option value="outcome">Outcome</option>
-            </select>
-            <select className="filter-select" value={filterLegacyAsset} onChange={(e) => setFilterLegacyAsset(e.target.value)}>
-              <option value="">All Assets</option>
-              {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-            <select className="filter-select" value={filterLegacyStatus} onChange={(e) => setFilterLegacyStatus(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="green">On Track</option>
-              <option value="amber">Needs Attention</option>
-              <option value="red">At Risk</option>
-            </select>
-            <select className="filter-select" value={legacySort} onChange={(e) => setLegacySort(e.target.value)}>
-              <option value="performance-desc">Sort: Performance high-low</option>
-              <option value="performance-asc">Sort: Performance low-high</option>
-              <option value="name">Sort: Name</option>
-              <option value="owner">Sort: Owner</option>
-            </select>
+            <SelectField
+              variant="filter"
+              value={filterCat}
+              onChange={setFilterCat}
+              options={legacyCategoryOptions}
+              placeholder="All Categories"
+            />
+            <SelectField
+              variant="filter"
+              value={filterLegacyAsset}
+              onChange={setFilterLegacyAsset}
+              options={assetOptions}
+              placeholder="All Assets"
+            />
+            <SelectField
+              variant="filter"
+              value={filterLegacyStatus}
+              onChange={setFilterLegacyStatus}
+              options={legacyStatusOptions}
+              placeholder="All Statuses"
+            />
+            <SelectField
+              variant="filter"
+              value={legacySort}
+              onChange={setLegacySort}
+              options={legacySortOptions}
+            />
             <div className="toolbar-spacer" />
             <button className="btn btn-primary" onClick={() => setShowLegacyForm(!showLegacyForm)}>
-              <Plus size={14} /> Enter Value
+              <Plus size={14} /> Enter Result
             </button>
           </div>
 
@@ -878,7 +925,7 @@ export default function IndicatorRegistry() {
                   <div className="form-panel-head">
                     <div className="section-copy">
                       <div className="section-kicker">Capture</div>
-                      <div className="section-title">Enter Indicator Value</div>
+                      <div className="section-title">Enter result</div>
                       <div className="section-text">Submit the latest actual value for a legacy indicator.</div>
                     </div>
                   </div>
@@ -922,7 +969,7 @@ export default function IndicatorRegistry() {
           <div className="card">
             <div className="card-header">
               <div className="section-copy">
-                <div className="section-title">Legacy Indicator Table</div>
+                <div className="section-title">Legacy indicators</div>
                 <div className="section-text">{filteredLegacy.length} indicators in view</div>
               </div>
             </div>

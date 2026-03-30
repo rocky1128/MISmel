@@ -2,7 +2,9 @@ import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import useMELData from "../hooks/useMELData";
+import PageHeader from "../components/layout/PageHeader";
 import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
+import SelectField from "../components/ui/SelectField";
 
 export default function AdminSettings() {
   const { departments, periods, users, assets, indicators, currentPeriod, loading, createDepartment, createReportingPeriod, updateUserRole } = useMELData();
@@ -25,28 +27,28 @@ export default function AdminSettings() {
     {
       title: "Create an active reporting period",
       done: periods.some((period) => period.status === "open"),
-      detail: "Required before manual submissions and uploads can be saved.",
+      detail: "Needed before results and imports can be saved.",
       actionLabel: "Add Period",
       action: () => setShowPeriod(true)
     },
     {
       title: "Define departments",
       done: departments.length > 0,
-      detail: "Departments keep ownership and accountability organized.",
+      detail: "Departments help keep ownership clear.",
       actionLabel: "Add Department",
       action: () => setShowDept(true)
     },
     {
       title: "Create assets and indicators",
       done: assets.length > 0 && indicators.length > 0,
-      detail: "Dashboards and data entry become meaningful after these are configured.",
+      detail: "Dashboards and data entry depend on these records.",
       linkLabel: "Open Indicators",
       linkTo: "/indicators"
     },
     {
       title: "Assign user roles",
       done: users.some((user) => user.role && user.role !== "viewer"),
-      detail: "Give contributors and approvers the right permissions before rollout.",
+      detail: "Make sure each person has the right access.",
       actionLabel: "Assign Role",
       action: () => setShowRole(true)
     }
@@ -56,45 +58,39 @@ export default function AdminSettings() {
   if (loading) {
     return (
       <PageLoading
-        title="Loading admin settings"
-        description="Collecting reporting periods, departments, and role assignments."
+        title="Loading settings"
+        description="Collecting periods, departments, and user access."
       />
     );
   }
 
   return (
     <div className="page-stack">
-      <div className="page-header">
-        <div className="page-header-row">
-          <div>
-            <div className="page-breadcrumb">System</div>
-            <h1 className="page-title">Admin Settings</h1>
-            <p className="page-subtitle">
-              Manage the operating structure behind reporting periods, departments, and user access.
-            </p>
+      <PageHeader
+        eyebrow="Admin"
+        title="Settings"
+        description="Manage reporting periods, departments, and user access."
+        meta={
+          <div className="badge badge-purple">
+            <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
+            {currentPeriod}
           </div>
-          <div className="page-actions">
-            <div className="badge badge-purple">
-              <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
-              {currentPeriod}
-            </div>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="summary-strip">
-        <SummaryTile label="Reporting Periods" value={summary.periods} text="Configured reporting windows" />
-        <SummaryTile label="Departments" value={summary.departments} text="Org units available for assignment" />
+        <SummaryTile label="Periods" value={summary.periods} text="Configured reporting windows" />
+        <SummaryTile label="Departments" value={summary.departments} text="Available for assignment" />
         <SummaryTile label="Users" value={summary.users} text="Profiles currently visible to admins" />
-        <SummaryTile label="Open Period" value={summary.activePeriod} text="Current active reporting window" />
+        <SummaryTile label="Current period" value={summary.activePeriod} text="Active reporting window" />
       </div>
 
       <div className="card">
         <div className="card-header">
           <div className="section-copy">
-            <div className="section-title">Workspace Setup</div>
+            <div className="section-title">Setup checklist</div>
             <div className="section-text">
-              Use this checklist to move the workspace from first-run setup to live reporting.
+              Use this checklist to move the workspace into daily use.
             </div>
           </div>
           <div className="badge badge-purple">
@@ -131,7 +127,7 @@ export default function AdminSettings() {
       <div className="grid-2">
         <SectionCard
           title="Reporting Periods"
-          description="Open, lock, and draft reporting periods used throughout the workspace."
+          description="Create and manage reporting windows used across the workspace."
           actionLabel="Add Period"
           actionIcon={<Plus size={12} />}
           onAction={() => setShowPeriod(!showPeriod)}
@@ -166,13 +162,13 @@ export default function AdminSettings() {
               </table>
             </div>
           ) : (
-            <EmptyPanel title="No reporting periods yet" text="Create a reporting period to enable submissions and tracking." />
+            <EmptyPanel title="No periods yet" text="Create a reporting period to enable submissions and tracking." />
           )}
         </SectionCard>
 
         <SectionCard
           title="Departments"
-          description="Define organizational units for ownership, collaboration, and user mapping."
+          description="Define the teams or units used for ownership and user mapping."
           actionLabel="Add Department"
           actionIcon={<Plus size={12} />}
           onAction={() => setShowDept(!showDept)}
@@ -198,14 +194,14 @@ export default function AdminSettings() {
               </table>
             </div>
           ) : (
-            <EmptyPanel title="No departments yet" text="Add departments so users and activities can be organized properly." />
+            <EmptyPanel title="No departments yet" text="Add departments so users and work can be organized clearly." />
           )}
         </SectionCard>
       </div>
 
       <SectionCard
-        title="User Access"
-        description="Assign user roles and attach them to the right department context."
+        title="User access"
+        description="Assign user roles and link people to the right department."
         actionLabel="Assign Role"
         actionIcon={<Settings size={12} />}
         onAction={() => setShowRole(!showRole)}
@@ -237,7 +233,7 @@ export default function AdminSettings() {
             </table>
           </div>
         ) : (
-          <EmptyPanel title="No users found" text="User profiles will appear here after authentication records are created." />
+          <EmptyPanel title="No users found" text="User profiles will appear here after sign-in records are created." />
         )}
       </SectionCard>
     </div>
@@ -271,6 +267,11 @@ function PeriodForm({ onSubmit, onDone }) {
   });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const statusOptions = [
+    { value: "open", label: "Open" },
+    { value: "draft", label: "Draft" },
+    { value: "locked", label: "Locked" }
+  ];
 
   async function handle(event) {
     event.preventDefault();
@@ -317,15 +318,11 @@ function PeriodForm({ onSubmit, onDone }) {
         </div>
         <div className="form-group">
           <label className="form-label">Status</label>
-          <select
-            className="form-select"
+          <SelectField
             value={form.status}
-            onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-          >
-            <option value="open">Open</option>
-            <option value="draft">Draft</option>
-            <option value="locked">Locked</option>
-          </select>
+            onChange={(nextValue) => setForm((current) => ({ ...current, status: nextValue }))}
+            options={statusOptions}
+          />
         </div>
         {msg ? <div className={`callout callout-${msg.t === "s" ? "success" : "error"}`}>{msg.m}</div> : null}
         <div className="form-panel-actions">
@@ -341,6 +338,12 @@ function DeptForm({ onSubmit, onDone }) {
   const [form, setForm] = useState({ name: "", type: "support" });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const typeOptions = [
+    { value: "leadership", label: "Leadership" },
+    { value: "support", label: "Support" },
+    { value: "technical", label: "Technical" },
+    { value: "cross-functional", label: "Cross-functional" }
+  ];
 
   async function handle(event) {
     event.preventDefault();
@@ -364,16 +367,11 @@ function DeptForm({ onSubmit, onDone }) {
         </div>
         <div className="form-group">
           <label className="form-label">Type</label>
-          <select
-            className="form-select"
+          <SelectField
             value={form.type}
-            onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
-          >
-            <option value="leadership">Leadership</option>
-            <option value="support">Support</option>
-            <option value="technical">Technical</option>
-            <option value="cross-functional">Cross-functional</option>
-          </select>
+            onChange={(nextValue) => setForm((current) => ({ ...current, type: nextValue }))}
+            options={typeOptions}
+          />
         </div>
         {msg ? <div className={`callout callout-${msg.t === "s" ? "success" : "error"}`}>{msg.m}</div> : null}
         <div className="form-panel-actions">
@@ -389,6 +387,18 @@ function RoleForm({ users, departments, onSubmit, onDone }) {
   const [form, setForm] = useState({ user_id: "", role: "contributor", department_id: "" });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const userOptions = users.map((user) => ({ value: user.id, label: user.fullName }));
+  const roleOptions = [
+    { value: "admin", label: "Admin" },
+    { value: "mel_manager", label: "MEL Manager" },
+    { value: "department_owner", label: "Department Owner" },
+    { value: "contributor", label: "Contributor" },
+    { value: "executive_viewer", label: "Executive Viewer" }
+  ];
+  const departmentOptions = departments.map((department) => ({
+    value: department.id,
+    label: department.name
+  }));
 
   async function handle(event) {
     event.preventDefault();
@@ -404,49 +414,32 @@ function RoleForm({ users, departments, onSubmit, onDone }) {
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">User</label>
-            <select
-              className="form-select"
+            <SelectField
               value={form.user_id}
-              onChange={(event) => setForm((current) => ({ ...current, user_id: event.target.value }))}
+              onChange={(nextValue) => setForm((current) => ({ ...current, user_id: nextValue }))}
+              options={userOptions}
+              placeholder="Select user"
               required
-            >
-              <option value="">Select</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.fullName}
-                </option>
-              ))}
-            </select>
+              name="user_id"
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Role</label>
-            <select
-              className="form-select"
+            <SelectField
               value={form.role}
-              onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-            >
-              <option value="admin">Admin</option>
-              <option value="mel_manager">MEL Manager</option>
-              <option value="department_owner">Department Owner</option>
-              <option value="contributor">Contributor</option>
-              <option value="executive_viewer">Executive Viewer</option>
-            </select>
+              onChange={(nextValue) => setForm((current) => ({ ...current, role: nextValue }))}
+              options={roleOptions}
+            />
           </div>
         </div>
         <div className="form-group">
           <label className="form-label">Department</label>
-          <select
-            className="form-select"
+          <SelectField
             value={form.department_id}
-            onChange={(event) => setForm((current) => ({ ...current, department_id: event.target.value }))}
-          >
-            <option value="">Select</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
+            onChange={(nextValue) => setForm((current) => ({ ...current, department_id: nextValue }))}
+            options={departmentOptions}
+            placeholder="Select department"
+          />
         </div>
         {msg ? <div className={`callout callout-${msg.t === "s" ? "success" : "error"}`}>{msg.m}</div> : null}
         <div className="form-panel-actions">

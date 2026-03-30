@@ -7,6 +7,7 @@ import KPICard from "../components/ui/KPICard";
 import SectionContainer from "../components/ui/SectionContainer";
 import ChartCard from "../components/ui/ChartCard";
 import InsightCard from "../components/ui/InsightCard";
+import SelectField from "../components/ui/SelectField";
 import { EmptyPanel, PageError, PageLoading } from "../components/ui/PageStates";
 import { MEL_DOMAINS } from "../lib/indicatorEngine";
 
@@ -86,6 +87,10 @@ export default function AssetPerformance() {
     for (const a of assets || []) map[a.slug] = a.name;
     return map;
   }, [assets]);
+  const assetOptions = useMemo(
+    () => Object.entries(assetLabels).map(([slug, label]) => ({ value: slug, label })),
+    [assetLabels]
+  );
 
   if (loading) {
     return <PageLoading title="Loading asset performance" description="Assembling KPI, engagement, learning, outcome, and trend data." />;
@@ -107,15 +112,14 @@ export default function AssetPerformance() {
           <div className="page-actions-inline">
             <div className="page-select-wrap">
               <span className="page-select-label">Asset</span>
-              <select
-                className="filter-select page-select"
+              <SelectField
+                variant="page"
+                className="page-select"
                 value={assetSlug}
-                onChange={(event) => navigate(`/assets/${event.target.value}`)}
-              >
-                {Object.entries(assetLabels).map(([slug, label]) => (
-                  <option key={slug} value={slug}>{label}</option>
-                ))}
-              </select>
+                onChange={(nextValue) => navigate(`/assets/${nextValue}`)}
+                options={assetOptions}
+                placeholder="Choose asset"
+              />
             </div>
           </div>
         }

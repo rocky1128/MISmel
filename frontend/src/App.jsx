@@ -18,7 +18,7 @@ function ProtectedRoutes() {
   const { isAuthenticated, isConfigured, loading } = useAuth();
 
   if (loading) {
-    return <FullScreenLoader title="Loading MEL MIS" description="Authenticating your workspace and preparing the decision-support dashboards." />;
+    return <FullScreenLoader title="Loading workspace" description="Checking your session and opening the MIS." />;
   }
 
   if (!isConfigured || !isAuthenticated) {
@@ -58,13 +58,13 @@ function LoginRoute() {
   if (isConfigured && isAuthenticated) return <Navigate to="/dashboard" replace />;
   if (loading && !isAuthenticated) {
     return (
-      <Suspense fallback={<FullScreenLoader title="Loading sign-in" description="Preparing authentication and workspace access." />}>
+      <Suspense fallback={<FullScreenLoader title="Loading sign-in" description="Opening the sign-in screen." />}>
         <Login />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={<FullScreenLoader title="Loading sign-in" description="Preparing authentication and workspace access." />}>
+    <Suspense fallback={<FullScreenLoader title="Loading sign-in" description="Opening the sign-in screen." />}>
       <Login />
     </Suspense>
   );
@@ -86,10 +86,8 @@ function RouteLoader() {
   return (
     <div className="state-panel state-panel-centered" style={{ minHeight: 320 }}>
       <div className="spinner" />
-      <h2 className="state-panel-title">Loading workspace module</h2>
-      <p className="state-panel-text">
-        Fetching the next screen and its reporting tools on demand to keep the workspace fast.
-      </p>
+      <h2 className="state-panel-title">Opening page</h2>
+      <p className="state-panel-text">Loading the next screen.</p>
     </div>
   );
 }

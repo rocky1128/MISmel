@@ -20,10 +20,10 @@ export default function OperationsDashboard() {
   } = useDashboardData();
 
   const metricSummary = [
-    { label: "On Track Indicators", value: topIndicators.length ? topIndicators[0].performanceScore : 0 },
-    { label: "Active Activities", value: activityHealth.active },
-    { label: "Completed Activities", value: activityHealth.completed },
-    { label: "Metric Rows", value: metrics.length }
+    { label: "Top score", value: topIndicators.length ? `${topIndicators[0].performanceScore}%` : "--" },
+    { label: "Active tasks", value: activityHealth.active },
+    { label: "Completed", value: activityHealth.completed },
+    { label: "Rows", value: metrics.length }
   ];
   const hasOperationalData = metrics.length > 0 || activities.length > 0 || topIndicators.length > 0 || worstIndicators.length > 0;
   const hasPillarData = pillars.some((pillar) => pillar.indicatorCount > 0 || pillar.activityCount > 0);
@@ -32,8 +32,8 @@ export default function OperationsDashboard() {
   if (loading) {
     return (
       <PageLoading
-        title="Loading strategic performance"
-        description="Preparing grouped indicators, activity tracking, and detailed operating metrics."
+        title="Loading performance view"
+        description="Preparing indicators, activities, and recent results."
       />
     );
   }
@@ -41,8 +41,8 @@ export default function OperationsDashboard() {
   if (error) {
     return (
       <PageError
-        title="Strategic performance could not load"
-        description="This view depends on grouped indicators, workplan execution, and operational metrics."
+        title="Performance view could not load"
+        description="This screen depends on grouped indicators, activities, and metrics."
         message={error}
       />
     );
@@ -52,9 +52,9 @@ export default function OperationsDashboard() {
     return (
       <div className="page-stack">
         <PageHeader
-          eyebrow="Strategic Performance"
-          title="Operations and Delivery View"
-          description="A detailed view for MEL managers to inspect pillar performance, delivery bottlenecks, and metric depth behind the executive story."
+          eyebrow="Performance"
+          title="Delivery and follow-up"
+          description="Review pillar performance, indicator outliers, and active work."
           meta={
             <div className="badge badge-purple">
               <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
@@ -64,11 +64,11 @@ export default function OperationsDashboard() {
         />
         <div className="card">
           <EmptyPanel
-            title="No operational data yet"
-            text="Add indicators, activities, or metric submissions to unlock the delivery dashboards and charts."
+            title="No operations data yet"
+            text="Add indicators, activities, or metric submissions to unlock this view."
             actions={[
               { label: "Open Settings", to: "/settings" },
-              { label: "Collect Data", to: "/data-collection", variant: "secondary" }
+              { label: "Data Entry", to: "/data-collection", variant: "secondary" }
             ]}
           />
         </div>
@@ -79,9 +79,9 @@ export default function OperationsDashboard() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Strategic Performance"
-        title="Operations and Delivery View"
-        description="A detailed view for MEL managers to inspect pillar performance, delivery bottlenecks, and metric depth behind the executive story."
+        eyebrow="Performance"
+        title="Delivery and follow-up"
+        description="Review pillar performance, indicator outliers, and active work."
         meta={
           <div className="badge badge-purple">
             <span className="badge-dot" style={{ background: "var(--purple-500)" }} />
@@ -100,8 +100,8 @@ export default function OperationsDashboard() {
       </div>
 
       <SectionContainer
-        title="Pillar Operating Detail"
-        description="The same pillars shown to leadership, now exposed with deeper delivery context."
+        title="Performance by pillar"
+        description="See where delivery is strong and where it needs support."
       >
         {hasPillarData || hasActivityMix ? (
           <div className="two-column-grid">
@@ -114,22 +114,22 @@ export default function OperationsDashboard() {
                     score={pillar.score}
                     trend={pillar.trend}
                     tone={mapTone(pillar.tone)}
-                    meta={`${pillar.indicatorCount} indicators · ${pillar.activityCount} activities`}
+                    meta={`${pillar.indicatorCount} indicators / ${pillar.activityCount} activities`}
                   />
                 ))
               ) : (
                 <div className="card">
                   <EmptyPanel
                     title="No pillar data yet"
-                    text="Pillar performance appears after indicators or activities are classified into strategic pillars."
+                    text="Pillar performance appears after indicators or activities are classified."
                   />
                 </div>
               )}
             </div>
             <ChartCard
-              title="Activity Execution Mix"
-              description="Use the workload mix to understand whether delivery pressure is rising or stabilizing."
-              footer="Interpretation: a high overdue count with low completion suggests execution support is needed before more targets are added."
+              title="Activity mix"
+              description="A quick breakdown of completed, active, and overdue work."
+              footer="If overdue work keeps rising, follow-up usually needs to happen before adding more tasks."
             >
               {hasActivityMix ? (
                 <div style={{ width: "100%", height: 320 }}>
@@ -152,7 +152,7 @@ export default function OperationsDashboard() {
               ) : (
                 <EmptyPanel
                   title="No activity mix yet"
-                  text="The execution chart appears after activities are added and start moving through statuses."
+                  text="This chart appears after activities are added and updated."
                 />
               )}
             </ChartCard>
@@ -161,7 +161,7 @@ export default function OperationsDashboard() {
           <div className="card">
             <EmptyPanel
               title="No delivery data yet"
-              text="Once operations data starts flowing, this view will show pillar performance and activity mix charts."
+              text="This view will fill in once operational data starts coming in."
             />
           </div>
         )}
@@ -169,8 +169,8 @@ export default function OperationsDashboard() {
 
       <div className="two-column-grid">
         <SectionContainer
-          title="Top Performing Indicators"
-          description="Use these as examples of what is currently working well."
+          title="Top indicators"
+          description="The strongest performers right now."
         >
           {topIndicators.length ? (
             <table className="list-table">
@@ -189,14 +189,14 @@ export default function OperationsDashboard() {
           ) : (
             <EmptyPanel
               title="No top indicators yet"
-              text="Indicator rankings will appear here after reporting targets and actuals are created."
+              text="Indicator rankings will appear after targets and results are added."
             />
           )}
         </SectionContainer>
 
         <SectionContainer
-          title="Watchlist Indicators"
-          description="These need intervention, clarification, or data correction first."
+          title="Needs follow-up"
+          description="Indicators that need intervention or review."
         >
           {worstIndicators.length ? (
             <table className="list-table">
@@ -215,15 +215,15 @@ export default function OperationsDashboard() {
           ) : (
             <EmptyPanel
               title="No watchlist yet"
-              text="Indicators that need intervention will surface here once live performance data exists."
+              text="Indicators that need attention will appear here once live data exists."
             />
           )}
         </SectionContainer>
       </div>
 
       <SectionContainer
-        title="Priority Activities"
-        description="A compact operational table for the activities that most affect current strategic delivery."
+        title="Active work"
+        description="The activities most likely to affect current delivery."
       >
         {activities.length ? (
           <div className="table-container">
@@ -256,7 +256,7 @@ export default function OperationsDashboard() {
         ) : (
           <EmptyPanel
             title="No activities yet"
-            text="Priority activities will populate here after the workplan is set up."
+            text="Activities will appear here after the workplan is set up."
           />
         )}
       </SectionContainer>

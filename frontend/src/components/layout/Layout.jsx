@@ -2,14 +2,12 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   BarChart3,
   Building2,
-  ChevronRight,
   ClipboardList,
   Database,
   Gauge,
   PanelLeft,
   Settings,
   ShieldCheck,
-  Sparkles,
   Tv
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -19,6 +17,12 @@ export default function Layout({ children }) {
   const { profile, signOut } = useAuth();
   const { assets } = useMELData();
   const location = useLocation();
+  const routeMeta = getRouteMeta(location.pathname, assets);
+  const todayLabel = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(new Date());
 
   const initials = (profile?.full_name || "User")
     .split(" ")
@@ -36,28 +40,28 @@ export default function Layout({ children }) {
 
   const navSections = [
     {
-      title: "Executive",
+      title: "Main",
       items: [
-        { to: "/dashboard", label: "Dashboard", icon: Gauge },
-        { to: "/strategic-performance", label: "Strategic Performance", icon: Sparkles }
+        { to: "/dashboard", label: "Overview", icon: Gauge },
+        { to: "/strategic-performance", label: "Performance", icon: BarChart3 }
       ]
     },
     {
-      title: "Institutional Assets",
-      items: assetItems,
-      emptyText: "Assets will appear after you add them."
-    },
-    {
-      title: "MEL Operations",
+      title: "Workflows",
       items: [
-        { to: "/data-collection", label: "Data Collection", icon: Database },
+        { to: "/data-collection", label: "Data Entry", icon: Database },
         { to: "/indicators", label: "Indicators", icon: PanelLeft },
         { to: "/surveys", label: "Surveys", icon: ClipboardList },
-        { to: "/data-quality", label: "Data Quality", icon: ShieldCheck }
+        { to: "/data-quality", label: "Checks", icon: ShieldCheck }
       ]
     },
     {
-      title: "Settings",
+      title: "Assets",
+      items: assetItems,
+      emptyText: "Add an asset in Settings to see it here."
+    },
+    {
+      title: "Admin",
       items: [
         { to: "/settings", label: "Settings", icon: Settings }
       ]
@@ -73,7 +77,7 @@ export default function Layout({ children }) {
           </div>
           <div>
             <div className="sidebar-brand-title">Springboard MIS</div>
-            <div className="sidebar-brand-text">MEL decision support</div>
+            <div className="sidebar-brand-text">Monitoring and reporting</div>
           </div>
         </div>
 
@@ -92,7 +96,6 @@ export default function Layout({ children }) {
                           <Icon className="nav-icon" size={18} />
                           <span>{item.label}</span>
                         </span>
-                        <ChevronRight size={14} className="nav-chevron" />
                       </NavLink>
                     );
                   })
@@ -119,8 +122,60 @@ export default function Layout({ children }) {
       </aside>
 
       <main className="main-content">
-        <div className="page-wrapper">{children}</div>
+        <div className="page-wrapper">
+          <div className="shell-topbar">
+            <div>
+              <div className="shell-kicker">{routeMeta.kicker}</div>
+              <div className="shell-heading">{routeMeta.title}</div>
+            </div>
+            <div className="shell-topbar-meta">
+              <div className="shell-status-pill">
+                <span className="shell-status-dot" />
+                {routeMeta.note}
+              </div>
+              <div className="shell-date">{todayLabel}</div>
+            </div>
+          </div>
+          {children}
+        </div>
       </main>
     </div>
   );
+}
+
+function getRouteMeta(pathname, assets) {
+  if (pathname === "/dashboard") {
+    return { kicker: "Home", title: "Overview", note: "Leadership view" };
+  }
+
+  if (pathname === "/strategic-performance") {
+    return { kicker: "Performance", title: "Delivery and follow-up", note: "Operations view" };
+  }
+
+  if (pathname === "/data-collection") {
+    return { kicker: "Workflow", title: "Data entry", note: "Capture results" };
+  }
+
+  if (pathname === "/indicators") {
+    return { kicker: "Setup", title: "Indicators", note: "Define measures" };
+  }
+
+  if (pathname === "/surveys") {
+    return { kicker: "Workflow", title: "Surveys", note: "Collect responses" };
+  }
+
+  if (pathname === "/data-quality") {
+    return { kicker: "Review", title: "Data checks", note: "Find gaps" };
+  }
+
+  if (pathname === "/settings") {
+    return { kicker: "Admin", title: "Settings", note: "Manage workspace" };
+  }
+
+  if (pathname.startsWith("/assets/")) {
+    const assetName = assets.find((asset) => pathname === `/assets/${asset.slug}`)?.name || "Asset";
+    return { kicker: "Asset", title: assetName, note: "View performance" };
+  }
+
+  return { kicker: "Workspace", title: "Springboard MIS", note: "Reporting workspace" };
 }

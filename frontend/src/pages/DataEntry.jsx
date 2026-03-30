@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Download, PenLine, Upload } from "lucide-react";
 import SearchSelect from "../components/ui/SearchSelect";
+import SelectField from "../components/ui/SelectField";
 import useMELData from "../hooks/useMELData";
 import { parseUploadedFile, validateMapping, transformRows, generateCSVTemplate } from "../lib/uploadParser";
 import { EmptyPanel, PageLoading } from "../components/ui/PageStates";
@@ -21,7 +22,7 @@ export default function DataEntry() {
     () => ({
       indicators: indicators.length,
       assets: assets.length,
-      modeLabel: mode === "manual" ? "Manual capture" : "Bulk ingestion"
+      modeLabel: mode === "manual" ? "Single entry" : "File import"
     }),
     [assets.length, indicators.length, mode]
   );
@@ -29,8 +30,8 @@ export default function DataEntry() {
   if (loading) {
     return (
       <PageLoading
-        title="Loading data entry workspace"
-        description="Preparing indicators, assets, and the available upload targets for new submissions."
+        title="Loading data entry"
+        description="Preparing indicators, assets, and import targets."
       />
     );
   }
@@ -40,10 +41,10 @@ export default function DataEntry() {
       <div className="page-header">
         <div className="page-header-row">
           <div>
-            <div className="page-breadcrumb">Data Collection</div>
-            <h1 className="page-title">Data Entry</h1>
+            <div className="page-breadcrumb">Data entry</div>
+            <h1 className="page-title">Enter results</h1>
             <p className="page-subtitle">
-              Capture reporting values manually or ingest bulk metrics files with a guided mapping flow.
+              Record one result or import a file.
             </p>
           </div>
           <div className="page-actions">
@@ -56,28 +57,27 @@ export default function DataEntry() {
       </div>
 
       <div className="summary-strip">
-        <SummaryTile label="Indicators Ready" value={summary.indicators} text="KPIs available for manual entry" />
-        <SummaryTile label="Assets Ready" value={summary.assets} text="Available asset links for uploaded metrics" />
-        <SummaryTile label="Current Mode" value={summary.modeLabel} text="Switch modes to change the capture workflow" />
+        <SummaryTile label="Indicators" value={summary.indicators} text="Available for entry" />
+        <SummaryTile label="Assets" value={summary.assets} text="Available for linking" />
+        <SummaryTile label="Mode" value={summary.modeLabel} text="Choose how you want to submit data" />
       </div>
 
       <div className="card">
         <div className="card-body">
           <div className="section-intro">
             <div className="section-copy">
-              <div className="section-title">Capture Workflow</div>
+              <div className="section-title">Choose a method</div>
               <div className="section-text">
-                Use manual entry for one-off KPI updates or bulk upload for structured media files. Each path is broken
-                into clear steps so the operator always knows what comes next.
+                Use single entry for one update at a time, or import a file for batch submissions.
               </div>
             </div>
           </div>
           <div className="tab-strip" style={{ marginTop: 16 }}>
             <button className={`tab-pill ${mode === "manual" ? "active" : ""}`} onClick={() => setMode("manual")}>
-              <PenLine size={14} /> Manual Entry
+              <PenLine size={14} /> Single Entry
             </button>
             <button className={`tab-pill ${mode === "bulk" ? "active" : ""}`} onClick={() => setMode("bulk")}>
-              <Upload size={14} /> Bulk Upload
+              <Upload size={14} /> File Import
             </button>
           </div>
         </div>
@@ -114,18 +114,18 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
   const currentStep = !form.indicator_id ? 0 : !form.actual_value ? 1 : 2;
   const manualSteps = [
     {
-      title: "Select indicator",
-      text: selectedIndicator ? `${selectedIndicator.code || "Indicator"} selected` : "Choose the KPI you want to update",
+      title: "Choose indicator",
+      text: selectedIndicator ? `${selectedIndicator.code || "Indicator"} selected` : "Pick the indicator to update",
       state: currentStep > 0 ? "complete" : "current"
     },
     {
-      title: "Enter actual value",
-      text: form.actual_value ? `Ready to save ${form.actual_value}` : "Capture the latest value for the reporting period",
+      title: "Enter value",
+      text: form.actual_value ? `Ready to save ${form.actual_value}` : "Enter the latest reported value",
       state: currentStep > 1 ? "complete" : currentStep === 1 ? "current" : "pending"
     },
     {
-      title: "Add context and submit",
-      text: form.comment ? "Context note attached" : "Optional commentary before submission",
+      title: "Add note",
+      text: form.comment ? "Note added" : "Add an optional note before saving",
       state: currentStep === 2 ? "current" : "pending"
     }
   ];
@@ -175,10 +175,9 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
             <div className="form-panel-head">
               <div className="section-copy">
                 <div className="section-kicker">Manual</div>
-                <div className="section-title">Guided Single Entry</div>
+                <div className="section-title">Enter one result</div>
                 <div className="section-text">
-                  Move through one submission at a time: select the KPI, enter the latest result, then add context if
-                  needed.
+                  Update one indicator at a time and save it immediately.
                 </div>
               </div>
             </div>
@@ -189,8 +188,8 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">Step 1. Select Indicator</div>
-                    <div className="workflow-panel-text">Choose the reporting target that should receive this update.</div>
+                    <div className="workflow-panel-title">1. Indicator</div>
+                    <div className="workflow-panel-text">Choose the indicator that should receive this update.</div>
                   </div>
                 </div>
                 <div className="form-group">
@@ -211,8 +210,8 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">Step 2. Enter Value</div>
-                    <div className="workflow-panel-text">Record the latest actual value exactly as reported.</div>
+                    <div className="workflow-panel-title">2. Value</div>
+                    <div className="workflow-panel-text">Record the latest value exactly as reported.</div>
                   </div>
                 </div>
                 <div className="form-row">
@@ -234,9 +233,9 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">Step 3. Add Context</div>
+                    <div className="workflow-panel-title">3. Note</div>
                     <div className="workflow-panel-text">
-                      Attach a short note if the source, interpretation, or exception needs to be recorded.
+                      Add a short note if the source or exception needs to be recorded.
                     </div>
                   </div>
                 </div>
@@ -266,7 +265,7 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
 
       <div className="stack">
         <WorkflowAside
-          title="Submission Readiness"
+          title="Ready to save"
           items={[
             { label: "Indicator selected", value: form.indicator_id ? "Ready" : "Pending", tone: form.indicator_id ? "good" : "muted" },
             { label: "Actual value entered", value: form.actual_value ? "Ready" : "Pending", tone: form.actual_value ? "good" : "muted" },
@@ -275,7 +274,7 @@ function ManualEntry({ indicators, onSubmit, onLog }) {
           note={
             selectedIndicator
               ? `${selectedIndicator.code || "Indicator"} will receive the next saved value.`
-              : "Select an indicator to start the submission."
+              : "Choose an indicator to begin."
           }
         />
       </div>
@@ -297,20 +296,28 @@ function BulkUpload({ assets, onSubmit, onLog }) {
     () => assets.find((asset) => asset.id === assetId),
     [assetId, assets]
   );
+  const columnOptions = useMemo(
+    () => (parsed?.columns || []).map((column) => ({ value: column, label: column })),
+    [parsed]
+  );
+  const assetOptions = useMemo(
+    () => assets.map((asset) => ({ value: asset.id, label: asset.name })),
+    [assets]
+  );
 
   const bulkSteps = [
     {
-      title: "Upload source file",
-      text: parsed ? `${fileName || "File"} loaded` : "Attach a CSV or Excel source file",
+      title: "Upload file",
+      text: parsed ? `${fileName || "File"} loaded` : "Attach a CSV or Excel file",
       state: parsed ? "complete" : "current"
     },
     {
-      title: "Map required fields",
-      text: mappingReady ? "Required columns mapped" : "Match name, date, and value columns",
+      title: "Match columns",
+      text: mappingReady ? "Required columns mapped" : "Match name, date, and value",
       state: mappingReady ? "complete" : parsed ? "current" : "pending"
     },
     {
-      title: "Review and import",
+      title: "Review import",
       text: parsed ? "Preview sample rows and confirm destination" : "Import becomes available after upload",
       state: parsed && mappingReady ? "current" : "pending"
     }
@@ -377,9 +384,9 @@ function BulkUpload({ assets, onSubmit, onLog }) {
             <div className="form-panel-head">
               <div className="section-copy">
                 <div className="section-kicker">Bulk</div>
-                <div className="section-title">Guided Bulk Upload</div>
+                <div className="section-title">Import a file</div>
                 <div className="section-text">
-                  Upload a source file, map the required fields once, then review a sample before import.
+                  Upload a file, match the required columns, then review the sample before import.
                 </div>
               </div>
               <div className="form-panel-actions">
@@ -395,9 +402,9 @@ function BulkUpload({ assets, onSubmit, onLog }) {
               <div className="workflow-panel">
                 <div className="workflow-panel-header">
                   <div>
-                    <div className="workflow-panel-title">Step 1. Upload File</div>
+                    <div className="workflow-panel-title">1. File</div>
                     <div className="workflow-panel-text">
-                      Choose the spreadsheet that contains the metrics to ingest.
+                      Choose the spreadsheet that contains the metrics to import.
                     </div>
                   </div>
                 </div>
@@ -416,9 +423,9 @@ function BulkUpload({ assets, onSubmit, onLog }) {
                 <div className="workflow-panel">
                   <div className="workflow-panel-header">
                     <div>
-                      <div className="workflow-panel-title">Step 2. Map Required Columns</div>
+                      <div className="workflow-panel-title">2. Columns</div>
                       <div className="workflow-panel-text">
-                        Match the source columns to the required MEL upload fields.
+                        Match the source columns to the required fields.
                       </div>
                     </div>
                   </div>
@@ -426,71 +433,53 @@ function BulkUpload({ assets, onSubmit, onLog }) {
                   <div className="form-row">
                     <div className="form-group">
                       <label className="form-label">Metric Name Column *</label>
-                      <select
-                        className="form-select"
+                      <SelectField
                         value={mapping.name || ""}
-                        onChange={(event) => setMapping((current) => ({ ...current, name: event.target.value }))}
-                      >
-                        <option value="">Select</option>
-                        {parsed.columns.map((column) => (
-                          <option key={column}>{column}</option>
-                        ))}
-                      </select>
+                        onChange={(nextValue) => setMapping((current) => ({ ...current, name: nextValue }))}
+                        options={columnOptions}
+                        placeholder="Select column"
+                      />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Date Column *</label>
-                      <select
-                        className="form-select"
+                      <SelectField
                         value={mapping.date || ""}
-                        onChange={(event) => setMapping((current) => ({ ...current, date: event.target.value }))}
-                      >
-                        <option value="">Select</option>
-                        {parsed.columns.map((column) => (
-                          <option key={column}>{column}</option>
-                        ))}
-                      </select>
+                        onChange={(nextValue) => setMapping((current) => ({ ...current, date: nextValue }))}
+                        options={columnOptions}
+                        placeholder="Select column"
+                      />
                     </div>
                   </div>
 
                   <div className="form-row">
                     <div className="form-group">
                       <label className="form-label">Value Column *</label>
-                      <select
-                        className="form-select"
+                      <SelectField
                         value={mapping.value || ""}
-                        onChange={(event) => setMapping((current) => ({ ...current, value: event.target.value }))}
-                      >
-                        <option value="">Select</option>
-                        {parsed.columns.map((column) => (
-                          <option key={column}>{column}</option>
-                        ))}
-                      </select>
+                        onChange={(nextValue) => setMapping((current) => ({ ...current, value: nextValue }))}
+                        options={columnOptions}
+                        placeholder="Select column"
+                      />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Source Column</label>
-                      <select
-                        className="form-select"
+                      <SelectField
                         value={mapping.source || ""}
-                        onChange={(event) => setMapping((current) => ({ ...current, source: event.target.value }))}
-                      >
-                        <option value="">Optional</option>
-                        {parsed.columns.map((column) => (
-                          <option key={column}>{column}</option>
-                        ))}
-                      </select>
+                        onChange={(nextValue) => setMapping((current) => ({ ...current, source: nextValue }))}
+                        options={columnOptions}
+                        placeholder="Optional"
+                      />
                     </div>
                   </div>
 
                   <div className="form-group">
                     <label className="form-label">Link to Asset</label>
-                    <select className="form-select" value={assetId} onChange={(event) => setAssetId(event.target.value)}>
-                      <option value="">No asset link</option>
-                      {assets.map((asset) => (
-                        <option key={asset.id} value={asset.id}>
-                          {asset.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectField
+                      value={assetId}
+                      onChange={setAssetId}
+                      options={assetOptions}
+                      placeholder="No asset link"
+                    />
                   </div>
                 </div>
               ) : null}
@@ -499,10 +488,8 @@ function BulkUpload({ assets, onSubmit, onLog }) {
                 <div className="workflow-panel">
                   <div className="workflow-panel-header">
                     <div>
-                      <div className="workflow-panel-title">Step 3. Review Sample</div>
-                      <div className="workflow-panel-text">
-                        Check the detected rows before committing the import.
-                      </div>
+                      <div className="workflow-panel-title">3. Preview</div>
+                      <div className="workflow-panel-text">Check the detected rows before importing.</div>
                     </div>
                   </div>
 
@@ -561,7 +548,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
 
       <div className="stack">
         <WorkflowAside
-          title="Import Readiness"
+          title="Ready to import"
           items={[
             { label: "Source file", value: parsed ? (fileName || "Attached") : "Pending", tone: parsed ? "good" : "muted" },
             { label: "Required mapping", value: mappingReady ? "Ready" : "Pending", tone: mappingReady ? "good" : "muted" },
@@ -570,7 +557,7 @@ function BulkUpload({ assets, onSubmit, onLog }) {
           note={
             parsed
               ? `${parsed.rows.length} rows detected${parsed.sheetName ? ` from ${parsed.sheetName}` : ""}.`
-              : "Upload a source file to unlock mapping and preview."
+              : "Upload a file to unlock mapping and preview."
           }
         />
       </div>
