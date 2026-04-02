@@ -2912,3 +2912,246 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== GOALS PAGE ===== */
+
+.goal-card {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--gray-300);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.goal-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.goal-card-header:hover {
+  background: var(--gray-50);
+}
+
+.goal-card-body {
+  padding: 0 16px 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.goal-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.goal-stat-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.goal-objective {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-100);
+  background: var(--gray-50);
+  overflow: hidden;
+}
+
+.goal-objective-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.goal-objective-header:hover {
+  background: var(--gray-100);
+}
+
+.goal-objective-body {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.goal-chevron {
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.goal-indicator-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--gray-100);
+}
+
+.goal-indicator-row:hover {
+  border-color: var(--purple-200);
+  background: var(--purple-50);
+}
+
+.goal-indicator-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.goal-indicator-name:hover {
+  text-decoration: underline;
+}
+
+.goal-empty-note {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+/* ===== LEARNING PAGE ===== */
+
+.learning-card {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.learning-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.learning-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+/* ===== MODAL ===== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 11, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 24px;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.modal-body {
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+}
+
+.modal-close:hover {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+/* ===== MISC UTILITY ===== */
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-required {
+  color: var(--red-500);
+}
+
+.inline-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--red-100);
+  color: var(--red-500);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .goal-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

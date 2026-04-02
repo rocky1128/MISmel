@@ -1,10 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
   BarChart3,
+  BookOpen,
   Building2,
   ClipboardList,
   Database,
   Gauge,
+  GitBranch,
+  Lightbulb,
   PanelLeft,
   Settings,
   ShieldCheck,
@@ -43,7 +46,9 @@ export default function Layout({ children }) {
       title: "Main",
       items: [
         { to: "/dashboard", label: "Overview", icon: Gauge },
-        { to: "/strategic-performance", label: "Performance", icon: BarChart3 }
+        { to: "/goals", label: "Goals", icon: GitBranch },
+        { to: "/strategic-performance", label: "Performance", icon: BarChart3 },
+        { to: "/analytics", label: "Analytics", icon: BarChart3 }
       ]
     },
     {
@@ -52,7 +57,8 @@ export default function Layout({ children }) {
         { to: "/data-collection", label: "Data Entry", icon: Database },
         { to: "/indicators", label: "Indicators", icon: PanelLeft },
         { to: "/surveys", label: "Surveys", icon: ClipboardList },
-        { to: "/data-quality", label: "Checks", icon: ShieldCheck }
+        { to: "/data-quality", label: "Checks", icon: ShieldCheck },
+        { to: "/learning", label: "Learning", icon: BookOpen }
       ]
     },
     {
@@ -147,35 +153,39 @@ function getRouteMeta(pathname, assets) {
   if (pathname === "/dashboard") {
     return { kicker: "Home", title: "Overview", note: "Leadership view" };
   }
-
+  if (pathname === "/goals") {
+    return { kicker: "Strategy", title: "Goals & outcomes", note: "Strategic framework" };
+  }
   if (pathname === "/strategic-performance") {
     return { kicker: "Performance", title: "Delivery and follow-up", note: "Operations view" };
   }
-
+  if (pathname === "/analytics") {
+    return { kicker: "Analysis", title: "Programme comparison", note: "Comparative view" };
+  }
+  if (pathname === "/learning") {
+    return { kicker: "Learning", title: "Learning module", note: "Insights and lessons" };
+  }
   if (pathname === "/data-collection") {
     return { kicker: "Workflow", title: "Data entry", note: "Capture results" };
   }
-
   if (pathname === "/indicators") {
     return { kicker: "Setup", title: "Indicators", note: "Define measures" };
   }
-
+  if (pathname.startsWith("/indicators/")) {
+    return { kicker: "Indicator", title: "Indicator detail", note: "Definition and history" };
+  }
   if (pathname === "/surveys") {
     return { kicker: "Workflow", title: "Surveys", note: "Collect responses" };
   }
-
   if (pathname === "/data-quality") {
     return { kicker: "Review", title: "Data checks", note: "Find gaps" };
   }
-
   if (pathname === "/settings") {
     return { kicker: "Admin", title: "Settings", note: "Manage workspace" };
   }
-
   if (pathname.startsWith("/assets/")) {
     const assetName = assets.find((asset) => pathname === `/assets/${asset.slug}`)?.name || "Asset";
     return { kicker: "Asset", title: assetName, note: "View performance" };
   }
-
   return { kicker: "Workspace", title: "Springboard MIS", note: "Reporting workspace" };
 }
