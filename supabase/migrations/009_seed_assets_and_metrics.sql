@@ -27,10 +27,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'facebook', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 210,   '{"video_id": "VU-001"}'),
   ('shares',          'facebook', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 150,   '{"video_id": "VU-001"}'),
   ('new_followers',   'facebook', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 120,   '{"video_id": "VU-001"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- VU-002: YouTube
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -42,10 +39,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'youtube', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 180,   '{"video_id": "VU-002"}'),
   ('shares',          'youtube', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 95,    '{"video_id": "VU-002"}'),
   ('new_followers',   'youtube', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 90,    '{"video_id": "VU-002"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- VU-003: TikTok
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -57,10 +51,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'tiktok', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 140,   '{"video_id": "VU-003"}'),
   ('shares',          'tiktok', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 180,   '{"video_id": "VU-003"}'),
   ('new_followers',   'tiktok', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 200,   '{"video_id": "VU-003"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- VU-004: LinkedIn
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -72,10 +63,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'linkedin', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 75,    '{"video_id": "VU-004"}'),
   ('shares',          'linkedin', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 30,    '{"video_id": "VU-004"}'),
   ('new_followers',   'linkedin', 'a0000000-0000-0000-0000-000000000001', '2025-05-01', 45,    '{"video_id": "VU-004"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- Hangout Metrics (from Excel: HO-001 to HO-004)
@@ -91,10 +79,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'facebook', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 210,   '{"video_id": "HO-001"}'),
   ('shares',          'facebook', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 150,   '{"video_id": "HO-001"}'),
   ('new_followers',   'facebook', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 120,   '{"video_id": "HO-001"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- HO-002: YouTube
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -106,10 +91,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'youtube', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 180,   '{"video_id": "HO-002"}'),
   ('shares',          'youtube', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 95,    '{"video_id": "HO-002"}'),
   ('new_followers',   'youtube', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 90,    '{"video_id": "HO-002"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- HO-003: TikTok
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -121,10 +103,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'tiktok', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 140,   '{"video_id": "HO-003"}'),
   ('shares',          'tiktok', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 180,   '{"video_id": "HO-003"}'),
   ('new_followers',   'tiktok', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 200,   '{"video_id": "HO-003"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- HO-004: LinkedIn
 INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
@@ -136,10 +115,7 @@ INSERT INTO metrics (name, source, asset_id, date, value, metadata) VALUES
   ('cta_clicks',      'linkedin', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 75,    '{"video_id": "HO-004"}'),
   ('shares',          'linkedin', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 30,    '{"video_id": "HO-004"}'),
   ('new_followers',   'linkedin', 'a0000000-0000-0000-0000-000000000002', '2025-05-01', 45,    '{"video_id": "HO-004"}')
-ON CONFLICT (name, source, asset_id, date) DO UPDATE
-SET
-  value = EXCLUDED.value,
-  metadata = EXCLUDED.metadata;
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- Media-specific indicators
