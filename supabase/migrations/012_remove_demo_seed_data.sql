@@ -13,14 +13,24 @@ WHERE indicator_id IN (
   )
 );
 
-DELETE FROM public.indicator_results
-WHERE asset_id IN (
-  'a0000000-0000-0000-0000-000000000001',
-  'a0000000-0000-0000-0000-000000000002',
-  'a0000000-0000-0000-0000-000000000003',
-  'a0000000-0000-0000-0000-000000000004',
-  'a0000000-0000-0000-0000-000000000005'
-);
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'governed_indicators'
+  ) THEN
+    DELETE FROM public.indicator_results
+    WHERE indicator_id IN (
+      SELECT id FROM public.governed_indicators
+      WHERE asset_id IN (
+        'a0000000-0000-0000-0000-000000000001',
+        'a0000000-0000-0000-0000-000000000002',
+        'a0000000-0000-0000-0000-000000000003',
+        'a0000000-0000-0000-0000-000000000004',
+        'a0000000-0000-0000-0000-000000000005'
+      )
+    );
+  END IF;
+END $$;
 
 DELETE FROM public.asset_scores
 WHERE asset_id IN (
