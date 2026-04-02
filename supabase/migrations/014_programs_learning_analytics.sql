@@ -1,10 +1,13 @@
 -- ============================================================
 -- Migration 014 — Programs, Learning Logs, Disaggregation,
 -- Goal/Program Links, and Performance Views
+--
+-- Safe to run whether or not migration 011 (governed_indicators)
+-- has been applied. All dependencies on governed_indicators and
+-- related tables are wrapped in existence checks.
 -- ============================================================
 
 -- ===== PROGRAMS TABLE =====
--- Tracks program models (e.g. YLO, ATVET, Tech) independently from assets
 CREATE TABLE IF NOT EXISTS programs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -20,56 +23,106 @@ CREATE TABLE IF NOT EXISTS programs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_programs_status ON programs(status);
-CREATE INDEX IF NOT EXISTS idx_programs_model ON programs(model);
+CREATE INDEX IF NOT EXISTS idx_programs_model  ON programs(model);
 
--- ===== EXTEND governed_indicators WITH GOAL AND PROGRAM LINKS =====
-ALTER TABLE governed_indicators
-  ADD COLUMN IF NOT EXISTS goal_id uuid REFERENCES goals(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS program_id uuid REFERENCES programs(id) ON DELETE SET NULL;
+-- ===== EXTEND governed_indicators (only if table exists) =====
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'governed_indicators'
+  ) THEN
+    ALTER TABLE governed_indicators
+      ADD COLUMN IF NOT EXISTS goal_id    uuid REFERENCES goals(id)    ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS program_id uuid REFERENCES programs(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_gov_indicators_goal ON governed_indicators(goal_id);
-CREATE INDEX IF NOT EXISTS idx_gov_indicators_program ON governed_indicators(program_id);
+    CREATE INDEX IF NOT EXISTS idx_gov_indicators_goal    ON governed_indicators(goal_id);
+    CREATE INDEX IF NOT EXISTS idx_gov_indicators_program ON governed_indicators(program_id);
+  END IF;
+END $$;
 
 -- ===== PROGRAM ↔ INDICATOR JOIN TABLE =====
-CREATE TABLE IF NOT EXISTS program_indicators (
-  program_id uuid NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
-  indicator_id uuid NOT NULL REFERENCES governed_indicators(id) ON DELETE CASCADE,
-  PRIMARY KEY (program_id, indicator_id)
-);
+-- FK to governed_indicators added only if that table exists
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'program_indicators'
+  ) THEN
+    IF EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'governed_indicators'
+    ) THEN
+      CREATE TABLE program_indicators (
+        program_id   uuid NOT NULL REFERENCES programs(id)            ON DELETE CASCADE,
+        indicator_id uuid NOT NULL REFERENCES governed_indicators(id) ON DELETE CASCADE,
+        PRIMARY KEY (program_id, indicator_id)
+      );
+    ELSE
+      -- Create without governed_indicators FK; FK can be added after migration 011 runs
+      CREATE TABLE program_indicators (
+        program_id   uuid NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+        indicator_id uuid NOT NULL,
+        PRIMARY KEY (program_id, indicator_id)
+      );
+    END IF;
+  END IF;
+END $$;
 
 -- ===== INDICATOR DISAGGREGATION TABLE =====
--- Stores breakdowns of indicator results by dimension (gender, location, age, etc.)
-CREATE TABLE IF NOT EXISTS indicator_disaggregation (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  indicator_id uuid NOT NULL REFERENCES governed_indicators(id) ON DELETE CASCADE,
-  period text NOT NULL,
-  dimension text NOT NULL,   -- 'gender', 'location', 'age_group', 'disability'
-  category text NOT NULL,    -- 'female', 'male', 'rural', 'urban', 'pwd', etc.
-  value numeric,
-  percentage numeric,
-  created_at timestamptz DEFAULT now()
-);
+-- FK to governed_indicators added only if that table exists
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'indicator_disaggregation'
+  ) THEN
+    IF EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'governed_indicators'
+    ) THEN
+      CREATE TABLE indicator_disaggregation (
+        id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        indicator_id uuid NOT NULL REFERENCES governed_indicators(id) ON DELETE CASCADE,
+        period       text NOT NULL,
+        dimension    text NOT NULL,
+        category     text NOT NULL,
+        value        numeric,
+        percentage   numeric,
+        created_at   timestamptz DEFAULT now()
+      );
+    ELSE
+      CREATE TABLE indicator_disaggregation (
+        id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        indicator_id uuid NOT NULL,
+        period       text NOT NULL,
+        dimension    text NOT NULL,
+        category     text NOT NULL,
+        value        numeric,
+        percentage   numeric,
+        created_at   timestamptz DEFAULT now()
+      );
+    END IF;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_disagg_indicator ON indicator_disaggregation(indicator_id);
-CREATE INDEX IF NOT EXISTS idx_disagg_period ON indicator_disaggregation(period);
+CREATE INDEX IF NOT EXISTS idx_disagg_period    ON indicator_disaggregation(period);
 CREATE INDEX IF NOT EXISTS idx_disagg_dimension ON indicator_disaggregation(dimension);
 
 -- ===== LEARNING LOGS TABLE =====
 CREATE TABLE IF NOT EXISTS learning_logs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  type text NOT NULL CHECK (type IN ('insight', 'lesson', 'recommendation')),
-  title text NOT NULL,
-  content text NOT NULL,
-  goal_id uuid REFERENCES goals(id) ON DELETE SET NULL,
-  program_id uuid REFERENCES programs(id) ON DELETE SET NULL,
-  tags text[] DEFAULT '{}',
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type         text NOT NULL CHECK (type IN ('insight', 'lesson', 'recommendation')),
+  title        text NOT NULL,
+  content      text NOT NULL,
+  goal_id      uuid REFERENCES goals(id)    ON DELETE SET NULL,
+  program_id   uuid REFERENCES programs(id) ON DELETE SET NULL,
+  tags         text[] DEFAULT '{}',
   submitted_by uuid REFERENCES profiles(id) ON DELETE SET NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_learning_logs_type ON learning_logs(type);
-CREATE INDEX IF NOT EXISTS idx_learning_logs_goal ON learning_logs(goal_id);
+CREATE INDEX IF NOT EXISTS idx_learning_logs_type    ON learning_logs(type);
+CREATE INDEX IF NOT EXISTS idx_learning_logs_goal    ON learning_logs(goal_id);
 CREATE INDEX IF NOT EXISTS idx_learning_logs_program ON learning_logs(program_id);
 CREATE INDEX IF NOT EXISTS idx_learning_logs_created ON learning_logs(created_at DESC);
 
@@ -98,8 +151,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- ===== GOAL PERFORMANCE VIEW =====
--- Aggregates legacy indicator performance per goal
--- Green ≥ 90%, Yellow 70–89%, Red < 70%
+-- Uses only tables from migrations 002–003, safe to always create
 CREATE OR REPLACE VIEW goal_performance_view AS
 SELECT
   g.id                          AS goal_id,
@@ -150,90 +202,132 @@ LEFT JOIN LATERAL (
 GROUP BY g.id, g.code, g.title, g.description, g.weight, g.start_year, g.end_year;
 
 -- ===== PROGRAM PERFORMANCE VIEW =====
--- Based on governed_indicators linked to programs
-CREATE OR REPLACE VIEW program_performance_view AS
-SELECT
-  p.id                          AS program_id,
-  p.name                        AS program_name,
-  p.code                        AS program_code,
-  p.model,
-  p.status,
-  COUNT(DISTINCT gi.id)         AS indicator_count,
-  COUNT(DISTINCT CASE WHEN ir_latest.status = 'good' THEN gi.id END)
-                                AS on_track_count,
-  COUNT(DISTINCT CASE WHEN ir_latest.status = 'warning' THEN gi.id END)
-                                AS warning_count,
-  COUNT(DISTINCT CASE WHEN ir_latest.status = 'critical' THEN gi.id END)
-                                AS critical_count,
-  ROUND(AVG(ir_latest.performance)::numeric, 1)
-                                AS avg_performance
-FROM programs p
-LEFT JOIN governed_indicators gi ON gi.program_id = p.id
-  AND gi.status IN ('active', 'approved')
-LEFT JOIN LATERAL (
-  SELECT performance, status
-  FROM indicator_results
-  WHERE indicator_id = gi.id
-  ORDER BY computed_at DESC
-  LIMIT 1
-) ir_latest ON TRUE
-GROUP BY p.id, p.name, p.code, p.model, p.status;
+-- Depends on governed_indicators and indicator_results (migration 011)
+-- Created only if those tables exist
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'governed_indicators'
+  ) AND EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'indicator_results'
+  ) THEN
+    EXECUTE $view$
+      CREATE OR REPLACE VIEW program_performance_view AS
+      SELECT
+        p.id                          AS program_id,
+        p.name                        AS program_name,
+        p.code                        AS program_code,
+        p.model,
+        p.status,
+        COUNT(DISTINCT gi.id)         AS indicator_count,
+        COUNT(DISTINCT CASE WHEN ir_latest.status = 'good'     THEN gi.id END) AS on_track_count,
+        COUNT(DISTINCT CASE WHEN ir_latest.status = 'warning'  THEN gi.id END) AS warning_count,
+        COUNT(DISTINCT CASE WHEN ir_latest.status = 'critical' THEN gi.id END) AS critical_count,
+        ROUND(AVG(ir_latest.performance)::numeric, 1)          AS avg_performance
+      FROM programs p
+      LEFT JOIN governed_indicators gi ON gi.program_id = p.id
+        AND gi.status IN ('active', 'approved')
+      LEFT JOIN LATERAL (
+        SELECT performance, status
+        FROM indicator_results
+        WHERE indicator_id = gi.id
+        ORDER BY computed_at DESC
+        LIMIT 1
+      ) ir_latest ON TRUE
+      GROUP BY p.id, p.name, p.code, p.model, p.status
+    $view$;
+  END IF;
+END $$;
 
 -- ===== ASSET PERFORMANCE VIEW =====
--- One row per asset with domain scores and status
-CREATE OR REPLACE VIEW asset_performance_view AS
-SELECT
-  a.id                          AS asset_id,
-  a.name                        AS asset_name,
-  a.type                        AS asset_type,
-  s.period,
-  s.reach_score,
-  s.inclusion_score,
-  s.engagement_score,
-  s.learning_score,
-  s.outcomes_score,
-  s.overall_score,
-  s.indicator_count,
-  s.data_coverage,
-  CASE
-    WHEN s.overall_score >= 90 THEN 'good'
-    WHEN s.overall_score >= 70 THEN 'warning'
-    ELSE 'critical'
-  END                           AS status
-FROM assets a
-LEFT JOIN LATERAL (
-  SELECT *
-  FROM asset_scores
-  WHERE asset_id = a.id
-  ORDER BY computed_at DESC
-  LIMIT 1
-) s ON TRUE;
+-- Depends on assets and asset_scores (migration 008/011)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'asset_scores'
+  ) THEN
+    EXECUTE $view$
+      CREATE OR REPLACE VIEW asset_performance_view AS
+      SELECT
+        a.id                AS asset_id,
+        a.name              AS asset_name,
+        a.type              AS asset_type,
+        s.period,
+        s.reach_score,
+        s.inclusion_score,
+        s.engagement_score,
+        s.learning_score,
+        s.outcomes_score,
+        s.overall_score,
+        s.indicator_count,
+        s.data_coverage,
+        CASE
+          WHEN s.overall_score >= 90 THEN 'good'
+          WHEN s.overall_score >= 70 THEN 'warning'
+          ELSE 'critical'
+        END AS status
+      FROM assets a
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM asset_scores
+        WHERE asset_id = a.id
+        ORDER BY computed_at DESC
+        LIMIT 1
+      ) s ON TRUE
+    $view$;
+  END IF;
+END $$;
 
 -- ===== RLS POLICIES =====
 
-ALTER TABLE programs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE program_indicators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE programs               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE program_indicators     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicator_disaggregation ENABLE ROW LEVEL SECURITY;
-ALTER TABLE learning_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE learning_logs          ENABLE ROW LEVEL SECURITY;
 
--- Read: all authenticated users
-CREATE POLICY "auth read programs" ON programs FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth read program_indicators" ON program_indicators FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth read disaggregation" ON indicator_disaggregation FOR SELECT TO authenticated USING (true);
-CREATE POLICY "auth read learning_logs" ON learning_logs FOR SELECT TO authenticated USING (true);
+DO $$ BEGIN
+  CREATE POLICY "auth read programs" ON programs FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Write: managers and admins
-CREATE POLICY "managers write programs" ON programs FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
-CREATE POLICY "managers write program_indicators" ON program_indicators FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
-CREATE POLICY "managers write disaggregation" ON indicator_disaggregation FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
+DO $$ BEGIN
+  CREATE POLICY "auth read program_indicators" ON program_indicators FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Learning logs: all authenticated can write
-CREATE POLICY "auth write learning_logs" ON learning_logs FOR INSERT TO authenticated
-  WITH CHECK (true);
-CREATE POLICY "auth update own learning_logs" ON learning_logs FOR UPDATE TO authenticated
-  USING (submitted_by = auth.uid());
-CREATE POLICY "managers delete learning_logs" ON learning_logs FOR DELETE TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager') OR submitted_by = auth.uid());
+DO $$ BEGIN
+  CREATE POLICY "auth read disaggregation" ON indicator_disaggregation FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "auth read learning_logs" ON learning_logs FOR SELECT TO authenticated USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write programs" ON programs FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write program_indicators" ON program_indicators FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write disaggregation" ON indicator_disaggregation FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "auth write learning_logs" ON learning_logs FOR INSERT TO authenticated
+    WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "auth update own learning_logs" ON learning_logs FOR UPDATE TO authenticated
+    USING (submitted_by = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers delete learning_logs" ON learning_logs FOR DELETE TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager') OR submitted_by = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
