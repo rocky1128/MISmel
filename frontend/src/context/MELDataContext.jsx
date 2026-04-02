@@ -34,6 +34,11 @@ export function MELDataProvider({ children }) {
   const [indicatorResults, setIndicatorResults] = useState([]);
   const [assetScoresData, setAssetScoresData] = useState([]);
   const [indicatorApprovals, setIndicatorApprovals] = useState([]);
+  // Strategic layer
+  const [goals, setGoals] = useState([]);
+  const [programs, setPrograms] = useState([]);
+  const [learningLogs, setLearningLogs] = useState([]);
+  const [indicatorDisaggregation, setIndicatorDisaggregation] = useState([]);
 
   const loadAll = useCallback(async () => {
     if (!supabase) {
@@ -50,10 +55,12 @@ export function MELDataProvider({ children }) {
         checkinRes, ivRes, perRes, assetRes, metRes, subRes,
         // NEW data sources
         partRes, epRes, surveyRes, followRes,
-        govIndRes, indResultsRes, assetScoresRes, approvalsRes
+        govIndRes, indResultsRes, assetScoresRes, approvalsRes,
+        // Strategic layer (014)
+        goalsRes, programsRes, learningRes, disaggRes
       ] = await Promise.all([
         supabase.from("activities").select("*"),
-        supabase.from("objectives").select("id, code, title"),
+        supabase.from("objectives").select("id, code, title, goal_id, description, weight"),
         supabase.from("profiles").select("id, full_name, email, role, department_id"),
         supabase.from("departments").select("id, name, type"),
         supabase.from("indicators").select("*"),
@@ -72,7 +79,12 @@ export function MELDataProvider({ children }) {
         supabase.from("governed_indicators").select("*").order("created_at", { ascending: false }),
         supabase.from("indicator_results").select("*").order("computed_at", { ascending: false }),
         supabase.from("asset_scores").select("*").order("computed_at", { ascending: false }),
-        supabase.from("indicator_approvals").select("*").order("created_at", { ascending: false })
+        supabase.from("indicator_approvals").select("*").order("created_at", { ascending: false }),
+        // Strategic layer (migration 014 — graceful if not migrated yet)
+        supabase.from("goals").select("*").order("code"),
+        supabase.from("programs").select("*").order("name"),
+        supabase.from("learning_logs").select("*").order("created_at", { ascending: false }),
+        supabase.from("indicator_disaggregation").select("*").order("created_at", { ascending: false }).limit(500)
       ]);
 
       // Check original tables for errors (new tables may not exist yet — handle gracefully)
@@ -117,8 +129,49 @@ export function MELDataProvider({ children }) {
       setObjectives((objRes.data ?? []).map((o) => ({
         id: o.id,
         code: o.code,
-        title: o.title ?? o.code
+        title: o.title ?? o.code,
+        goalId: o.goal_id,
+        description: o.description,
+        weight: o.weight
       })));
+
+      setGoals((goalsRes.data ?? []).map((g) => ({
+        id: g.id,
+        code: g.code,
+        title: g.title,
+        description: g.description,
+        weight: g.weight,
+        startYear: g.start_year,
+        endYear: g.end_year,
+        createdAt: g.created_at
+      })));
+
+      setPrograms((programsRes.data ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        description: p.description,
+        model: p.model,
+        status: p.status,
+        startDate: p.start_date,
+        endDate: p.end_date
+      })));
+
+      setLearningLogs((learningRes.data ?? []).map((l) => ({
+        id: l.id,
+        type: l.type,
+        title: l.title,
+        content: l.content,
+        goalId: l.goal_id,
+        programId: l.program_id,
+        tags: l.tags ?? [],
+        submittedBy: profilesMap.get(l.submitted_by) ?? "Unknown",
+        submittedById: l.submitted_by,
+        createdAt: l.created_at,
+        updatedAt: l.updated_at
+      })));
+
+      setIndicatorDisaggregation(disaggRes.data ?? []);
 
       const normalizedActivities = (actRes.data ?? []).map((activity) => {
         const objective = objectivesMap.get(activity.objective_id);
@@ -515,6 +568,71 @@ export function MELDataProvider({ children }) {
     return { success: true };
   }
 
+  // ===== LEARNING LOG MUTATIONS =====
+
+  async function createLearningLog(payload) {
+    const { data, error: insertError } = await supabase
+      .from("learning_logs")
+      .insert({
+        type: payload.type,
+        title: payload.title,
+        content: payload.content,
+        goal_id: payload.goalId ?? null,
+        program_id: payload.programId ?? null,
+        tags: payload.tags ?? []
+      })
+      .select("id")
+      .single();
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true, id: data.id };
+  }
+
+  async function updateLearningLog(id, payload) {
+    const { error: updateError } = await supabase
+      .from("learning_logs")
+      .update({
+        type: payload.type,
+        title: payload.title,
+        content: payload.content,
+        goal_id: payload.goalId ?? null,
+        program_id: payload.programId ?? null,
+        tags: payload.tags ?? []
+      })
+      .eq("id", id);
+    if (updateError) return { success: false, error: updateError };
+    await loadAll();
+    return { success: true };
+  }
+
+  async function deleteLearningLog(id) {
+    const { error: deleteError } = await supabase.from("learning_logs").delete().eq("id", id);
+    if (deleteError) return { success: false, error: deleteError };
+    await loadAll();
+    return { success: true };
+  }
+
+  // ===== PROGRAM MUTATIONS =====
+
+  async function createProgram(payload) {
+    const { data, error: insertError } = await supabase
+      .from("programs")
+      .insert({
+        name: payload.name,
+        code: payload.code ?? null,
+        description: payload.description ?? null,
+        model: payload.model ?? null,
+        status: payload.status ?? "active",
+        start_date: payload.startDate ?? null,
+        end_date: payload.endDate ?? null
+      })
+      .select("id")
+      .single();
+    if (insertError) return { success: false, error: insertError };
+    await loadAll();
+    return { success: true, id: data.id };
+  }
+
   async function submitBulkEpisodes(data) {
     const { error: insertError } = await supabase.from("episodes").insert(data);
     if (insertError) return { success: false, error: insertError };
@@ -559,6 +677,8 @@ export function MELDataProvider({ children }) {
       indicatorApprovals,
       // NEW: Computed engine outputs
       dataSources, computedResults, computedAssetScores, signalBlocks, domainSummary,
+      // Strategic layer (014)
+      goals, programs, learningLogs, indicatorDisaggregation,
       // Original mutations
       submitIndicatorValue, submitBulkMetrics, createActivity, submitCheckin,
       submitMediaMetrics,
@@ -569,6 +689,8 @@ export function MELDataProvider({ children }) {
       submitSurveyResponse, submitBulkSurveys, submitFollowUp,
       submitParticipant, submitBulkParticipants, submitBulkEpisodes,
       persistIndicatorResults,
+      // Learning + program mutations (014)
+      createLearningLog, updateLearningLog, deleteLearningLog, createProgram,
       reload: loadAll
     }),
     [
@@ -577,6 +699,7 @@ export function MELDataProvider({ children }) {
       participants, episodes, surveyResponses, followUpData,
       governedIndicators, indicatorResults, assetScoresData, indicatorApprovals,
       dataSources, computedResults, computedAssetScores, signalBlocks, domainSummary,
+      goals, programs, learningLogs, indicatorDisaggregation,
       loadAll
     ]
   );

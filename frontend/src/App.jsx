@@ -10,9 +10,13 @@ const OperationsDashboard = lazy(() => import("./pages/OperationsDashboard"));
 const AssetPerformance = lazy(() => import("./pages/AssetPerformance"));
 const DataEntry = lazy(() => import("./pages/DataEntry"));
 const IndicatorRegistry = lazy(() => import("./pages/IndicatorRegistry"));
+const IndicatorDetailPage = lazy(() => import("./pages/IndicatorDetailPage"));
 const DataQuality = lazy(() => import("./pages/DataQuality"));
 const AdminSettings = lazy(() => import("./pages/AdminSettings"));
 const SurveyModule = lazy(() => import("./pages/SurveyModule"));
+const GoalsPage = lazy(() => import("./pages/GoalsPage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const LearningPage = lazy(() => import("./pages/LearningPage"));
 
 function ProtectedRoutes() {
   const { isAuthenticated, isConfigured, loading } = useAuth();
@@ -31,10 +35,14 @@ function ProtectedRoutes() {
         <Suspense fallback={<RouteLoader />}>
           <Routes>
             <Route path="/dashboard" element={<ExecutiveDashboard />} />
+            <Route path="/goals" element={<GoalsPage />} />
             <Route path="/strategic-performance" element={<OperationsDashboard />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/learning" element={<LearningPage />} />
             <Route path="/assets/:assetSlug" element={<AssetPerformance />} />
             <Route path="/data-collection" element={<DataEntry />} />
             <Route path="/indicators" element={<IndicatorRegistry />} />
+            <Route path="/indicators/:id" element={<IndicatorDetailPage />} />
             <Route path="/surveys" element={<SurveyModule />} />
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/settings" element={<AdminSettings />} />
