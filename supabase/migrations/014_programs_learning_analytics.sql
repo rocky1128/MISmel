@@ -196,7 +196,7 @@ LEFT JOIN LATERAL (
   SELECT actual_value
   FROM indicator_values
   WHERE indicator_id = i.id
-  ORDER BY created_at DESC
+  ORDER BY indicator_values.created_at DESC
   LIMIT 1
 ) iv_latest ON TRUE
 GROUP BY g.id, g.code, g.title, g.description, g.weight, g.start_year, g.end_year;
