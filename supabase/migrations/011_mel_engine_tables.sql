@@ -357,29 +357,52 @@ ALTER TABLE asset_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicator_approvals ENABLE ROW LEVEL SECURITY;
 
 -- Read access for all authenticated users
-CREATE POLICY "authenticated read participants" ON participants FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read episodes" ON episodes FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read surveys" ON survey_responses FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read followup" ON follow_up_data FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read gov_indicators" ON governed_indicators FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read results" ON indicator_results FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read asset_scores" ON asset_scores FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated read approvals" ON indicator_approvals FOR SELECT TO authenticated USING (true);
+DO $$ BEGIN CREATE POLICY "authenticated read participants"    ON participants       FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read episodes"        ON episodes           FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read surveys"         ON survey_responses   FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read followup"        ON follow_up_data     FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read gov_indicators"  ON governed_indicators FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read results"         ON indicator_results  FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read asset_scores"    ON asset_scores       FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "authenticated read approvals"       ON indicator_approvals FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Write access for managers
-CREATE POLICY "managers write participants" ON participants FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
-CREATE POLICY "managers write episodes" ON episodes FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
-CREATE POLICY "managers write surveys" ON survey_responses FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
-CREATE POLICY "managers write followup" ON follow_up_data FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
-CREATE POLICY "managers write gov_indicators" ON governed_indicators FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
-CREATE POLICY "managers write results" ON indicator_results FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
-CREATE POLICY "managers write asset_scores" ON asset_scores FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
-CREATE POLICY "managers write approvals" ON indicator_approvals FOR ALL TO authenticated
-  USING (current_user_role() IN ('admin', 'mel_manager'));
+DO $$ BEGIN
+  CREATE POLICY "managers write participants" ON participants FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write episodes" ON episodes FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write surveys" ON survey_responses FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write followup" ON follow_up_data FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager', 'department_owner', 'contributor'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write gov_indicators" ON governed_indicators FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write results" ON indicator_results FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write asset_scores" ON asset_scores FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "managers write approvals" ON indicator_approvals FOR ALL TO authenticated
+    USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

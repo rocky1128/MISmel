@@ -112,29 +112,38 @@ ALTER TABLE metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE submissions_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE targets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public read access to assets"
-  ON assets FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "Public read access to assets" ON assets FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Admin can manage assets"
-  ON assets FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+DO $$ BEGIN
+  CREATE POLICY "Admin can manage assets" ON assets FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Public read access to metrics"
-  ON metrics FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "Public read access to metrics" ON metrics FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Authenticated can insert metrics"
-  ON metrics FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+DO $$ BEGIN
+  CREATE POLICY "Authenticated can insert metrics" ON metrics FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Admin can manage metrics"
-  ON metrics FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+DO $$ BEGIN
+  CREATE POLICY "Admin can manage metrics" ON metrics FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Public read access to submissions_log"
-  ON submissions_log FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "Public read access to submissions_log" ON submissions_log FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Authenticated can insert submissions_log"
-  ON submissions_log FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+DO $$ BEGIN
+  CREATE POLICY "Authenticated can insert submissions_log" ON submissions_log FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Public read access to targets"
-  ON targets FOR SELECT USING (true);
+DO $$ BEGIN
+  CREATE POLICY "Public read access to targets" ON targets FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE POLICY "Admin can manage targets"
-  ON targets FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+DO $$ BEGIN
+  CREATE POLICY "Admin can manage targets" ON targets FOR ALL USING (current_user_role() IN ('admin', 'mel_manager'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

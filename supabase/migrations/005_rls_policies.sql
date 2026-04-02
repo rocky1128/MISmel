@@ -20,166 +20,156 @@ as $$
   select role from public.profiles where id = auth.uid()
 $$;
 
-create policy "authenticated users can read departments"
-on public.departments
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read departments"
+    on public.departments for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "users can read own profile"
-on public.profiles
-for select
-to authenticated
-using (id = auth.uid() or public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "users can read own profile"
+    on public.profiles for select to authenticated
+    using (id = auth.uid() or public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "admins manage profiles"
-on public.profiles
-for all
-to authenticated
-using (public.current_user_role() = 'admin')
-with check (public.current_user_role() = 'admin');
+do $$ begin
+  create policy "admins manage profiles"
+    on public.profiles for all to authenticated
+    using (public.current_user_role() = 'admin')
+    with check (public.current_user_role() = 'admin');
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read planning data"
-on public.goals
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read planning data"
+    on public.goals for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read objectives"
-on public.objectives
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read objectives"
+    on public.objectives for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read activities"
-on public.activities
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read activities"
+    on public.activities for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "admins and mel managers manage planning data"
-on public.goals
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'))
-with check (public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "admins and mel managers manage planning data"
+    on public.goals for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'))
+    with check (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "admins and mel managers manage objectives"
-on public.objectives
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'))
-with check (public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "admins and mel managers manage objectives"
+    on public.objectives for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'))
+    with check (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "admins and mel managers manage activity schedules"
-on public.activity_schedule
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'))
-with check (public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "admins and mel managers manage activity schedules"
+    on public.activity_schedule for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'))
+    with check (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "owners and managers manage activities"
-on public.activities
-for all
-to authenticated
-using (
-  public.current_user_role() in ('admin', 'mel_manager')
-  or owner_id = auth.uid()
-)
-with check (
-  public.current_user_role() in ('admin', 'mel_manager')
-  or owner_id = auth.uid()
-);
+do $$ begin
+  create policy "owners and managers manage activities"
+    on public.activities for all to authenticated
+    using (
+      public.current_user_role() in ('admin', 'mel_manager')
+      or owner_id = auth.uid()
+    )
+    with check (
+      public.current_user_role() in ('admin', 'mel_manager')
+      or owner_id = auth.uid()
+    );
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read indicators"
-on public.indicators
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read indicators"
+    on public.indicators for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "managers manage indicators"
-on public.indicators
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'))
-with check (public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "managers manage indicators"
+    on public.indicators for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'))
+    with check (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read reporting periods"
-on public.reporting_periods
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read reporting periods"
+    on public.reporting_periods for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "admins manage reporting periods"
-on public.reporting_periods
-for all
-to authenticated
-using (public.current_user_role() = 'admin')
-with check (public.current_user_role() = 'admin');
+do $$ begin
+  create policy "admins manage reporting periods"
+    on public.reporting_periods for all to authenticated
+    using (public.current_user_role() = 'admin')
+    with check (public.current_user_role() = 'admin');
+exception when duplicate_object then null; end $$;
 
-create policy "owners and managers manage monthly checkins"
-on public.monthly_checkins
-for all
-to authenticated
-using (
-  public.current_user_role() in ('admin', 'mel_manager')
-  or exists (
-    select 1 from public.activities a
-    where a.id = monthly_checkins.activity_id
-      and a.owner_id = auth.uid()
-  )
-)
-with check (
-  public.current_user_role() in ('admin', 'mel_manager')
-  or exists (
-    select 1 from public.activities a
-    where a.id = monthly_checkins.activity_id
-      and a.owner_id = auth.uid()
-  )
-);
+do $$ begin
+  create policy "owners and managers manage monthly checkins"
+    on public.monthly_checkins for all to authenticated
+    using (
+      public.current_user_role() in ('admin', 'mel_manager')
+      or exists (
+        select 1 from public.activities a
+        where a.id = monthly_checkins.activity_id
+          and a.owner_id = auth.uid()
+      )
+    )
+    with check (
+      public.current_user_role() in ('admin', 'mel_manager')
+      or exists (
+        select 1 from public.activities a
+        where a.id = monthly_checkins.activity_id
+          and a.owner_id = auth.uid()
+      )
+    );
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read indicator values"
-on public.indicator_values
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read indicator values"
+    on public.indicator_values for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "managers manage indicator values"
-on public.indicator_values
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager', 'department_owner'))
-with check (public.current_user_role() in ('admin', 'mel_manager', 'department_owner'));
+do $$ begin
+  create policy "managers manage indicator values"
+    on public.indicator_values for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager', 'department_owner'))
+    with check (public.current_user_role() in ('admin', 'mel_manager', 'department_owner'));
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read evidence"
-on public.evidence_items
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read evidence"
+    on public.evidence_items for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "contributors and managers manage evidence"
-on public.evidence_items
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager', 'department_owner', 'contributor'))
-with check (public.current_user_role() in ('admin', 'mel_manager', 'department_owner', 'contributor'));
+do $$ begin
+  create policy "contributors and managers manage evidence"
+    on public.evidence_items for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager', 'department_owner', 'contributor'))
+    with check (public.current_user_role() in ('admin', 'mel_manager', 'department_owner', 'contributor'));
+exception when duplicate_object then null; end $$;
 
-create policy "authenticated users can read scores"
-on public.score_snapshots
-for select
-to authenticated
-using (true);
+do $$ begin
+  create policy "authenticated users can read scores"
+    on public.score_snapshots for select to authenticated using (true);
+exception when duplicate_object then null; end $$;
 
-create policy "managers manage scores"
-on public.score_snapshots
-for all
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'))
-with check (public.current_user_role() in ('admin', 'mel_manager'));
+do $$ begin
+  create policy "managers manage scores"
+    on public.score_snapshots for all to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'))
+    with check (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
 
-create policy "managers read audit logs"
-on public.audit_logs
-for select
-to authenticated
-using (public.current_user_role() in ('admin', 'mel_manager'));
-
+do $$ begin
+  create policy "managers read audit logs"
+    on public.audit_logs for select to authenticated
+    using (public.current_user_role() in ('admin', 'mel_manager'));
+exception when duplicate_object then null; end $$;
