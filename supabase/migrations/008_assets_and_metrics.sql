@@ -29,9 +29,11 @@ CREATE TABLE IF NOT EXISTS assets (
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TRIGGER set_assets_updated_at
-  BEFORE UPDATE ON assets
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DO $$ BEGIN
+  CREATE TRIGGER set_assets_updated_at
+    BEFORE UPDATE ON assets
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ============================================================
 -- Metrics table (raw data layer)
@@ -49,14 +51,16 @@ CREATE TABLE IF NOT EXISTS metrics (
   UNIQUE(name, source, asset_id, date)
 );
 
-CREATE INDEX idx_metrics_asset_id ON metrics(asset_id);
-CREATE INDEX idx_metrics_date ON metrics(date);
-CREATE INDEX idx_metrics_name ON metrics(name);
-CREATE INDEX idx_metrics_source ON metrics(source);
+CREATE INDEX IF NOT EXISTS idx_metrics_asset_id ON metrics(asset_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_date ON metrics(date);
+CREATE INDEX IF NOT EXISTS idx_metrics_name ON metrics(name);
+CREATE INDEX IF NOT EXISTS idx_metrics_source ON metrics(source);
 
-CREATE TRIGGER set_metrics_updated_at
-  BEFORE UPDATE ON metrics
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DO $$ BEGIN
+  CREATE TRIGGER set_metrics_updated_at
+    BEFORE UPDATE ON metrics
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ============================================================
 -- Enhance indicators table with new fields
@@ -87,9 +91,9 @@ CREATE TABLE IF NOT EXISTS submissions_log (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_submissions_log_user ON submissions_log(user_id);
-CREATE INDEX idx_submissions_log_entity ON submissions_log(entity_type, entity_id);
-CREATE INDEX idx_submissions_log_created ON submissions_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_submissions_log_user ON submissions_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_log_entity ON submissions_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_log_created ON submissions_log(created_at DESC);
 
 -- ============================================================
 -- Targets table (per-period targets for indicators)
