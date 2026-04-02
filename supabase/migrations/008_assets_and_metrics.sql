@@ -3,19 +3,19 @@
 -- ============================================================
 
 -- Asset types
-CREATE TYPE asset_type AS ENUM ('media', 'platform', 'service');
+DO $$ BEGIN CREATE TYPE asset_type AS ENUM ('media', 'platform', 'service'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- KPI categories for indicators
-CREATE TYPE kpi_category AS ENUM ('institutional', 'asset', 'process', 'outcome');
+DO $$ BEGIN CREATE TYPE kpi_category AS ENUM ('institutional', 'asset', 'process', 'outcome'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Indicator types
-CREATE TYPE indicator_type AS ENUM ('output', 'outcome', 'process');
+DO $$ BEGIN CREATE TYPE indicator_type AS ENUM ('output', 'outcome', 'process'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Entry methods
-CREATE TYPE entry_method AS ENUM ('manual', 'upload', 'api', 'hybrid');
+DO $$ BEGIN CREATE TYPE entry_method AS ENUM ('manual', 'upload', 'api', 'hybrid'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Indicator lock status
-CREATE TYPE indicator_status AS ENUM ('active', 'locked');
+DO $$ BEGIN CREATE TYPE indicator_status AS ENUM ('active', 'locked'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ============================================================
 -- Assets table
